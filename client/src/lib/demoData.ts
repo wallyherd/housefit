@@ -18,9 +18,15 @@ export type OrderStatus = "Recebido" | "Preparando" | "Pronto" | "Em entrega" | 
 export type Order = {
   id: string;
   customer: string;
+  customerPhone?: string;
   initials: string;
   items: number;
   itemNames: string[];
+  subtotal?: number;
+  discountAmount?: number;
+  couponCode?: string;
+  partnerId?: string;
+  partnerName?: string;
   total: number;
   status: OrderStatus;
   channel: "Delivery" | "Retirada";
@@ -31,11 +37,22 @@ export type Order = {
 export type Customer = {
   id: string;
   name: string;
+  phone: string;
   initials: string;
   orders: number;
   spent: number;
   lastOrder: string;
   favorite: string;
+};
+
+export type Partner = {
+  id: string;
+  name: string;
+  phone: string;
+  coupon: string;
+  discountPercent: number;
+  createdAt: string;
+  active: boolean;
 };
 
 const mealImage = "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=85";
@@ -123,20 +140,50 @@ export const initialProducts: Product[] = [
 ];
 
 export const initialOrders: Order[] = [
-  { id: "#HF-1048", customer: "Mariana Costa", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Preparando", channel: "Delivery", time: "há 8 min", payment: "Pix" },
-  { id: "#HF-1047", customer: "Rafael Mendes", initials: "RM", items: 5, itemNames: ["Combo a partir de 5 marmitas"], total: 137, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
-  { id: "#HF-1046", customer: "Bianca Alves", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Pronto", channel: "Delivery", time: "há 21 min", payment: "Pix" },
-  { id: "#HF-1045", customer: "Lucas Vieira", initials: "LV", items: 4, itemNames: ["Combo a partir de 10 marmitas"], total: 257, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
-  { id: "#HF-1044", customer: "Ana Souza", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
-  { id: "#HF-1043", customer: "Diego Rocha", initials: "DR", items: 3, itemNames: ["Patinho moído, arroz e feijão carioca"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
+  { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Preparando", channel: "Delivery", time: "há 8 min", payment: "Pix" },
+  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo a partir de 5 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 125, discountAmount: 12.5, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 112.5, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
+  { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Pronto", channel: "Delivery", time: "há 21 min", payment: "Pix" },
+  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo a partir de 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 245, discountAmount: 36.75, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 208.25, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
+  { id: "#HF-1044", customer: "Ana Souza", customerPhone: "(65) 98455-7788", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
+  { id: "#HF-1043", customer: "Diego Rocha", customerPhone: "(65) 99344-9900", initials: "DR", items: 3, itemNames: ["Patinho moído, arroz e feijão carioca"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
 ];
 
 export const initialCustomers: Customer[] = [
-  { id: "c1", name: "Mariana Costa", initials: "MC", orders: 18, spent: 824.5, lastOrder: "Hoje, 12:42", favorite: "Panqueca de frango" },
-  { id: "c2", name: "Rafael Mendes", initials: "RM", orders: 14, spent: 671, lastOrder: "Hoje, 12:36", favorite: "Combo 10 marmitas" },
-  { id: "c3", name: "Bianca Alves", initials: "BA", orders: 11, spent: 489.5, lastOrder: "Ontem, 19:12", favorite: "Strogonoff de carne" },
-  { id: "c4", name: "Lucas Vieira", initials: "LV", orders: 9, spent: 445, lastOrder: "Ontem, 12:28", favorite: "Combo 20 marmitas" },
-  { id: "c5", name: "Ana Souza", initials: "AS", orders: 8, spent: 322, lastOrder: "20 out, 11:04", favorite: "Escondidinho de frango" },
+  { id: "c1", name: "Mariana Costa", phone: "(65) 99821-3344", initials: "MC", orders: 18, spent: 824.5, lastOrder: "Hoje, 12:42", favorite: "Panqueca de frango" },
+  { id: "c2", name: "Rafael Mendes", phone: "(65) 99654-1122", initials: "RM", orders: 14, spent: 671, lastOrder: "Hoje, 12:36", favorite: "Combo 10 marmitas" },
+  { id: "c3", name: "Bianca Alves", phone: "(65) 99123-5566", initials: "BA", orders: 11, spent: 489.5, lastOrder: "Ontem, 19:12", favorite: "Strogonoff de carne" },
+  { id: "c4", name: "Lucas Vieira", phone: "(65) 99789-0011", initials: "LV", orders: 9, spent: 445, lastOrder: "Ontem, 12:28", favorite: "Combo 20 marmitas" },
+  { id: "c5", name: "Ana Souza", phone: "(65) 98455-7788", initials: "AS", orders: 8, spent: 322, lastOrder: "20 out, 11:04", favorite: "Escondidinho de frango" },
+];
+
+export const initialPartners: Partner[] = [
+  {
+    id: "p1",
+    name: "Lucas Personal Trainer",
+    phone: "(65) 99812-4433",
+    coupon: "LUCASFIT",
+    discountPercent: 10,
+    createdAt: "10/10/2026",
+    active: true,
+  },
+  {
+    id: "p2",
+    name: "Dra. Camila Nutricionista",
+    phone: "(65) 99234-8899",
+    coupon: "CAMILANUTRI",
+    discountPercent: 15,
+    createdAt: "15/10/2026",
+    active: true,
+  },
+  {
+    id: "p3",
+    name: "Academia Iron House",
+    phone: "(65) 99600-1234",
+    coupon: "IRONHOUSE",
+    discountPercent: 10,
+    createdAt: "18/10/2026",
+    active: true,
+  },
 ];
 
 export const weeklySales = [
