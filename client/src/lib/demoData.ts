@@ -75,10 +75,11 @@ const product = (
 ): Product => ({ id, name, category, description, price, stock, cost, image, tag, available: stock > 0 });
 
 export const initialProducts: Product[] = [
-  product("combo-20", "Combo de 20 marmitas", "Combos", "Escolha seus sabores favoritos e economize R$ 50 no freezer.", 480, 12, 312, mealImage, "Mais economia"),
-  product("combo-10", "Combo de 10 marmitas", "Combos", "Refeições práticas para deixar a semana mais leve.", 245, 18, 160, bowlImage, "Favorito"),
-  product("combo-5", "Combo de 5 marmitas", "Combos", "O jeito gostoso de começar uma rotina mais prática.", 125, 23, 83, proteinImage, "Para experimentar"),
-  product("combo-caldos", "Combo de 10 caldos", "Combos", "Dias aconchegantes com caldo congelado e pronto em minutos.", 165, 7, 102, soupImage, "Combo"),
+  product("combo-20", "Combo 20 marmitas", "Combos", "Escolha seus sabores favoritos e garanta o mês todo no freezer com máxima economia.", 449, 12, 290, mealImage, "Mais economia"),
+  product("combo-10", "Combo 10 marmitas", "Combos", "Refeições práticas para deixar a semana mais leve e saborosa.", 229, 18, 150, bowlImage, "Favorito"),
+  product("combo-5", "Combo 05 marmitas", "Combos", "O jeito gostoso de começar uma rotina saudável e prática.", 119, 23, 78, proteinImage, "Para experimentar"),
+  product("combo-caldos", "Combo 10 caldos", "Combos", "Dias aconchegantes com caldo congelado e pronto em minutos.", 159, 7, 98, soupImage, "Favorito"),
+  product("combo-caldos-20", "Combo 20 caldos", "Combos", "Variedade de caldos para aquecer suas noites com o melhor custo-benefício.", 299, 10, 185, soupImage, "Mais economia"),
   product("frango-pan-vermelho", "Panqueca de frango ao molho vermelho", "Frango", "2 discos, 100g de frango desfiado, molho de tomate e muçarela.", 26.5, 79, 11.2, mealImage),
   product("frango-pan-branco", "Panqueca de frango ao molho branco", "Frango", "2 discos, 100g de frango desfiado, molho branco e muçarela.", 26.5, 35, 11.4, mealImage),
   product("frango-escond-batatadoce", "Escondidinho de frango com purê de batata-doce", "Frango", "120g de frango, 160g de purê de batata-doce e queijo.", 26.5, 28, 12.1, bowlImage),
@@ -141,9 +142,9 @@ export const initialProducts: Product[] = [
 
 export const initialOrders: Order[] = [
   { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Preparando", channel: "Delivery", time: "há 8 min", payment: "Pix" },
-  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo de 5 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 125, discountAmount: 12.5, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 112.5, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
+  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo 05 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 119, discountAmount: 11.9, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 107.1, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
   { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Pronto", channel: "Delivery", time: "há 21 min", payment: "Pix" },
-  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo de 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 245, discountAmount: 36.75, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 208.25, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
+  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 229, discountAmount: 34.35, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 194.65, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
   { id: "#HF-1044", customer: "Ana Souza", customerPhone: "(65) 98455-7788", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
   { id: "#HF-1043", customer: "Diego Rocha", customerPhone: "(65) 99344-9900", initials: "DR", items: 3, itemNames: ["Patinho moído, arroz e feijão carioca"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
 ];
@@ -207,11 +208,77 @@ export const monthlySales = [
 
 export const productReport = [
   { name: "Panqueca de frango ao molho vermelho", units: 182, revenue: 4823 },
-  { name: "Combo de 10 marmitas", units: 94, revenue: 23030 },
+  { name: "Combo 10 marmitas", units: 94, revenue: 21526 },
   { name: "Strogonoff de carne com arroz branco", units: 86, revenue: 2279 },
   { name: "Escondidinho de frango com purê de batata-doce", units: 77, revenue: 2040 },
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
 ];
+
+export const PRODUCTS_STORAGE_KEY = "housefit-products-v4";
+
+export function sanitizeProducts(savedList: Product[]): Product[] {
+  const comboUpdates: Record<string, Partial<Product>> = {
+    "combo-20": { name: "Combo 20 marmitas", price: 449 },
+    "combo-10": { name: "Combo 10 marmitas", price: 229 },
+    "combo-5": { name: "Combo 05 marmitas", price: 119 },
+    "combo-caldos": { name: "Combo 10 caldos", price: 159 },
+    "combo-caldos-20": { name: "Combo 20 caldos", price: 299 },
+  };
+
+  const updated = savedList.map((p) => {
+    let cleanName = p.name
+      .replace(/Combo a partir de\s*/gi, "Combo ")
+      .replace(/Combo de 0?5 marmitas/gi, "Combo 05 marmitas")
+      .replace(/Combo de 10 marmitas/gi, "Combo 10 marmitas")
+      .replace(/Combo de 20 marmitas/gi, "Combo 20 marmitas")
+      .replace(/Combo de 10 caldos/gi, "Combo 10 caldos")
+      .replace(/Combo de 20 caldos/gi, "Combo 20 caldos")
+      .replace(/Combo 5 marmitas/gi, "Combo 05 marmitas");
+
+    const override = comboUpdates[p.id];
+    if (override) {
+      return {
+        ...p,
+        ...override,
+        name: override.name || cleanName,
+      };
+    }
+    return { ...p, name: cleanName };
+  });
+
+  // Garantir que combo-caldos-20 exista na lista
+  if (!updated.some((p) => p.id === "combo-caldos-20")) {
+    const soupCombo20 = initialProducts.find((p) => p.id === "combo-caldos-20");
+    if (soupCombo20) {
+      const idx = updated.findIndex((p) => p.id === "combo-caldos");
+      if (idx !== -1) {
+        updated.splice(idx + 1, 0, soupCombo20);
+      } else {
+        updated.push(soupCombo20);
+      }
+    }
+  }
+
+  return updated;
+}
+
+export function getInitialOrStoredProducts(): Product[] {
+  if (typeof window === "undefined") return initialProducts;
+  try {
+    const v4 = window.localStorage.getItem(PRODUCTS_STORAGE_KEY);
+    if (v4) {
+      const parsed = JSON.parse(v4) as Product[];
+      return sanitizeProducts(parsed);
+    }
+    const legacy = window.localStorage.getItem("housefit-products");
+    const base = legacy ? (JSON.parse(legacy) as Product[]) : initialProducts;
+    const sanitized = sanitizeProducts(base);
+    window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(sanitized));
+    return sanitized;
+  } catch {
+    return initialProducts;
+  }
+}
 
 export function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -228,3 +295,4 @@ export function saveToStorage<T>(key: string, value: T) {
 }
 
 export const formatBRL = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+

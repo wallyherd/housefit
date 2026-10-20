@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import {
   formatBRL,
+  getInitialOrStoredProducts,
   initialCustomers,
   initialOrders,
   initialPartners,
@@ -43,6 +44,7 @@ import {
   monthlySales,
   productReport,
   saveToStorage,
+  PRODUCTS_STORAGE_KEY,
   weeklySales,
   type Customer,
   type Order,
@@ -68,7 +70,7 @@ export default function Admin() {
   const [section, setSection] = useState<Section>("Visão geral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>(() => loadFromStorage("housefit-orders", initialOrders));
-  const [products, setProducts] = useState<Product[]>(() => loadFromStorage("housefit-products", initialProducts));
+  const [products, setProducts] = useState<Product[]>(() => getInitialOrStoredProducts());
   const [customers, setCustomers] = useState<Customer[]>(() => loadFromStorage("housefit-customers", initialCustomers));
   const [partners, setPartners] = useState<Partner[]>(() => loadFromStorage("housefit-partners", initialPartners));
   const [orderFilter, setOrderFilter] = useState<"Todos" | OrderStatus>("Todos");
@@ -98,6 +100,7 @@ export default function Admin() {
       product.id === id ? { ...product, available: !product.available } : product
     );
     setProducts(next);
+    saveToStorage(PRODUCTS_STORAGE_KEY, next);
     saveToStorage("housefit-products", next);
   };
 
@@ -113,6 +116,7 @@ export default function Admin() {
       return product;
     });
     setProducts(next);
+    saveToStorage(PRODUCTS_STORAGE_KEY, next);
     saveToStorage("housefit-products", next);
     showToast("Produto atualizado com sucesso!");
   };

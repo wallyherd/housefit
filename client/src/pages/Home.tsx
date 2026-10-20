@@ -24,12 +24,14 @@ import {
 } from "lucide-react";
 import {
   formatBRL,
+  getInitialOrStoredProducts,
   initialCustomers,
   initialOrders,
   initialPartners,
   initialProducts,
   loadFromStorage,
   saveToStorage,
+  PRODUCTS_STORAGE_KEY,
   type Order,
   type Partner,
   type Product,
@@ -73,13 +75,14 @@ export function getComboTargetCount(product: Product): number {
   if (product.id === "combo-10") return 10;
   if (product.id === "combo-5") return 5;
   if (product.id === "combo-caldos") return 10;
+  if (product.id === "combo-caldos-20") return 20;
   const match = product.name.match(/\d+/);
   return match ? parseInt(match[0], 10) : 10;
 }
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [products] = useState<Product[]>(() => loadFromStorage("housefit-products", initialProducts));
+  const [products] = useState<Product[]>(() => getInitialOrStoredProducts());
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>(() => loadFromStorage("housefit-cart", []));
   const [cartOpen, setCartOpen] = useState(false);
@@ -431,7 +434,7 @@ export default function Home() {
             <div className="empty-state">
               <Search size={24} />
               <strong>Nenhum combo encontrado</strong>
-              <span>Tente buscar por 5, 10, 20 marmitas ou caldos.</span>
+              <span>Tente buscar por 05, 10, 20 marmitas ou caldos.</span>
             </div>
           )}
         </section>
@@ -706,23 +709,27 @@ function ComboCustomizerModal({
   onConfirm: (selections: Array<{ product: Product; quantity: number }>) => void;
 }) {
   const targetCount = getComboTargetCount(combo);
+  const isSoupCombo = combo.id.includes("caldos") || combo.name.toLowerCase().includes("caldo");
+  const unitLabel = isSoupCombo ? "caldo" : "marmita";
+  const unitPluralLabel = isSoupCombo ? "caldos" : "marmitas";
+
   const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
-  const [modalFilter, setModalFilter] = useState<string>(combo.id === "combo-caldos" ? "Caldos" : "Todas");
+  const [modalFilter, setModalFilter] = useState<string>(isSoupCombo ? "Caldos" : "Todas");
   const [modalSearch, setModalSearch] = useState("");
 
-  // Available marmitas with stock from inventory
+  // Available marmitas/caldos with stock from inventory
   const availableMarmitas = useMemo(() => {
     return allProducts.filter((p) => {
       if (p.category === "Combos") return false;
       if (p.stock <= 0 || !p.available) return false;
 
-      if (combo.id === "combo-caldos") {
+      if (isSoupCombo) {
         return p.category === "Caldos";
       }
 
       return p.category === "Frango" || p.category === "Carne" || p.category === "Caldos";
     });
-  }, [allProducts, combo.id]);
+  }, [allProducts, isSoupCombo]);
 
   const filteredMarmitas = useMemo(() => {
     return availableMarmitas.filter((p) => {
@@ -772,7 +779,7 @@ function ComboCustomizerModal({
       .filter(Boolean) as Array<{ product: Product; quantity: number }>;
   }, [selectedCounts, allProducts]);
 
-  const filterOptions = combo.id === "combo-caldos" ? ["Caldos"] : ["Todas", "Frango", "Carne", "Caldos"];
+  const filterOptions = isSoupCombo ? ["Caldos"] : ["Todas", "Frango", "Carne", "Caldos"];
 
   return (
     <div className="combo-modal-backdrop" onClick={onClose}>
@@ -781,7 +788,7 @@ function ComboCustomizerModal({
           <div>
             <span className="eyebrow"><Boxes size={13} /> Monte seu Combo</span>
             <h3>{combo.name}</h3>
-            <p>Selecione exatamente <strong>{targetCount} marmitas</strong> com base no estoque disponível do nosso cardápio.</p>
+            <p>Selecione exatamente <strong>{targetCount} {unitPluralLabel}</strong> com base no estoque disponível do nosso cardápio.</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={20} /></button>
         </div>
@@ -793,11 +800,11 @@ function ComboCustomizerModal({
               {isComplete ? (
                 <><Check size={13} /> Combo completo!</>
               ) : (
-                <><AlertCircle size={13} /> Faltam {remaining} marmita(s)</>
+                <><AlertCircle size={13} /> Faltam {remaining} {remaining === 1 ? unitLabel : unitPluralLabel}</>
               )}
             </span>
             <span className={`combo-count-badge ${isComplete ? "complete" : ""}`}>
-              <strong>{totalSelected}</strong> de {targetCount} marmitas selecionadas
+              <strong>{totalSelected}</strong> de {targetCount} {unitPluralLabel} selecionados
             </span>
           </div>
           <div className="combo-progress-track">
@@ -901,7 +908,7 @@ function ComboCustomizerModal({
             {isComplete ? (
               <>Adicionar ao pedido • {formatBRL(combo.price)} <Check size={16} /></>
             ) : (
-              `Selecione mais ${remaining} marmita(s)`
+              `Selecione mais ${remaining} ${remaining === 1 ? unitLabel : unitPluralLabel}`
             )}
           </button>
         </div>
