@@ -26,7 +26,6 @@ import {
   Search,
   Settings2,
   ShoppingBag,
-  Sparkles,
   Ticket,
   TrendingUp,
   Truck,
@@ -450,7 +449,7 @@ function Overview({
 
       <div className="admin-grid-bottom">
         <section className="panel insight-panel">
-          <div className="insight-label"><Sparkles size={16} /> PROGRAMA DE INDICAÇÕES</div>
+          <div className="insight-label"><Ticket size={16} /> PROGRAMA DE INDICAÇÕES</div>
           <h3>Parceiros trazem clientes mais fiéis.</h3>
           <p>Profissionais de saúde e personal trainers de Cuiabá cadastrados com cupom próprio geram pedidos de ticket mais alto.</p>
           <button className="text-link" onClick={() => setSection("Indicações")}>Ver painel de indicações <ChevronRight size={16} /></button>
@@ -1205,7 +1204,7 @@ function ReportsView({
               </div>
             ))}
           <div className="report-insight">
-            <Sparkles size={16} />
+            <TrendingUp size={16} />
             <span>Concentre combos e comunicação de antecipação entre quinta e sexta.</span>
           </div>
         </section>

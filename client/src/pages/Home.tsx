@@ -1,19 +1,26 @@
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
+  Boxes,
   Check,
   ChevronDown,
   Clock3,
+  Lock,
+  LogOut,
+  Mail,
   MapPin,
   Minus,
+  Package,
+  Phone,
   Plus,
   Search,
   ShoppingBag,
-  Sparkles,
   Trash2,
+  User,
   X,
   AlertCircle,
+  Shield,
 } from "lucide-react";
 import {
   formatBRL,
@@ -41,7 +48,25 @@ export type CartItem = {
   }>;
 };
 
-const categories = ["Todos", "Combos", "Frango", "Carne", "Caldos", "Lanches", "Sucos"] as const;
+export type AuthUser = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  password?: string;
+  role: "user" | "admin";
+};
+
+const initialAuthUsers: AuthUser[] = [
+  {
+    id: "admin-1",
+    name: "Administrador HouseFit",
+    phone: "(65) 99986-5093",
+    email: "admin@housefit.com.br",
+    password: "admin",
+    role: "admin",
+  },
+];
 
 export function getComboTargetCount(product: Product): number {
   if (product.id === "combo-20") return 20;
@@ -53,8 +78,8 @@ export function getComboTargetCount(product: Product): number {
 }
 
 export default function Home() {
+  const [, setLocation] = useLocation();
   const [products] = useState<Product[]>(() => loadFromStorage("housefit-products", initialProducts));
-  const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]>("Todos");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>(() => loadFromStorage("housefit-cart", []));
   const [cartOpen, setCartOpen] = useState(false);
@@ -67,18 +92,26 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [comboModalProduct, setComboModalProduct] = useState<Product | null>(null);
 
+  // Authentication State
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() =>
+    loadFromStorage<AuthUser | null>("housefit-auth-current", null)
+  );
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   const saveCart = (nextCart: CartItem[]) => {
     setCart(nextCart);
     saveToStorage("housefit-cart", nextCart);
   };
 
-  const visibleProducts = useMemo(() => {
+  // Only display Combos on the public home page!
+  const visibleCombos = useMemo(() => {
     return products.filter((product) => {
-      const matchesCategory = activeCategory === "Todos" || product.category === activeCategory;
+      if (product.category !== "Combos") return false;
       const normalized = `${product.name} ${product.description}`.toLowerCase();
-      return matchesCategory && normalized.includes(search.toLowerCase()) && product.available;
+      return normalized.includes(search.toLowerCase()) && product.available;
     });
-  }, [activeCategory, products, search]);
+  }, [products, search]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0), [cart]);
@@ -116,28 +149,6 @@ export default function Home() {
     setCouponError("");
   };
 
-  const addRegularProduct = (product: Product) => {
-    const existingIndex = cart.findIndex((item) => item.productId === product.id && !item.isCombo);
-    if (existingIndex >= 0) {
-      const nextCart = [...cart];
-      nextCart[existingIndex].quantity += 1;
-      saveCart(nextCart);
-    } else {
-      saveCart([
-        ...cart,
-        {
-          key: product.id,
-          productId: product.id,
-          product,
-          quantity: 1,
-          isCombo: false,
-        },
-      ]);
-    }
-    setNotice(`${product.name} adicionado ao pedido.`);
-    window.setTimeout(() => setNotice(""), 2800);
-  };
-
   const updateCartItemQuantity = (key: string, delta: number) => {
     const nextCart = cart
       .map((item) => {
@@ -171,6 +182,32 @@ export default function Home() {
     setNotice(`Combo com ${targetCount} marmitas adicionado ao pedido!`);
     window.setTimeout(() => setNotice(""), 3500);
     setCartOpen(true);
+  };
+
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    saveToStorage("housefit-auth-current", user);
+    setAuthModalOpen(false);
+
+    // Auto-fill checkout fields if empty
+    if (!customerName) setCustomerName(user.name);
+    if (!customerPhone) setCustomerPhone(user.phone);
+
+    if (user.role === "admin") {
+      setNotice("Login como Administrador realizado com sucesso!");
+      setLocation("/admin");
+    } else {
+      setNotice(`Bem-vindo(a), ${user.name}!`);
+      window.setTimeout(() => setNotice(""), 3500);
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    saveToStorage("housefit-auth-current", null);
+    setUserMenuOpen(false);
+    setNotice("Sessão encerrada com sucesso.");
+    window.setTimeout(() => setNotice(""), 3000);
   };
 
   const confirmOrder = () => {
@@ -224,14 +261,14 @@ export default function Home() {
         orders: 1,
         spent: finalTotal,
         lastOrder: "Hoje, agora",
-        favorite: cart[0]?.product.name || "Marmita HouseFit",
+        favorite: cart[0]?.product.name || "Combo HouseFit",
       });
     }
     saveToStorage("housefit-customers", customers);
 
     saveCart([]);
-    setCustomerName("");
-    setCustomerPhone("");
+    setCustomerName(currentUser?.name || "");
+    setCustomerPhone(currentUser?.phone || "");
     setAppliedPartner(null);
     setCouponInput("");
     setCheckoutOpen(false);
@@ -242,18 +279,94 @@ export default function Home() {
 
   return (
     <div className="app-shell public-shell">
+      {/* Header: only logo, "Entrar", and Cart */}
       <header className="public-header">
         <div className="header-inner">
           <Link href="/" className="brand-mark" aria-label="HouseFit início">
             <img src="/logo.png" alt="HouseFit - Marmita Saudável" className="brand-logo" />
           </Link>
-          <nav className="desktop-nav" aria-label="Navegação principal">
-            <a className="nav-link active" href="#cardapio">Cardápio</a>
-            <a className="nav-link" href="#como-funciona">Como funciona</a>
-            <a className="nav-link" href="#contato">Contato</a>
-          </nav>
+
           <div className="header-actions">
-            <Link href="/admin" className="admin-link">Painel admin <ArrowRight size={15} /></Link>
+            {currentUser ? (
+              <div style={{ position: "relative" }}>
+                <button
+                  className="user-dropdown-btn"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                >
+                  <User size={15} />
+                  <span>{currentUser.name.split(" ")[0]}</span>
+                  {currentUser.role === "admin" && (
+                    <span style={{ background: "var(--ink)", color: "white", padding: "1px 6px", borderRadius: 4, fontSize: 9 }}>
+                      Admin
+                    </span>
+                  )}
+                  <ChevronDown size={14} />
+                </button>
+
+                {userMenuOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      marginTop: 8,
+                      width: 190,
+                      background: "white",
+                      borderRadius: 12,
+                      boxShadow: "0 10px 30px rgba(0,0,0,.15)",
+                      border: "1px solid var(--line)",
+                      padding: 6,
+                      zIndex: 30,
+                    }}
+                  >
+                    {currentUser.role === "admin" && (
+                      <Link
+                        href="/admin"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: "var(--ink)",
+                        }}
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Shield size={14} /> Painel Admin
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "var(--coral)",
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <LogOut size={14} /> Sair da conta
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                className="login-nav-btn"
+                onClick={() => setAuthModalOpen(true)}
+              >
+                <User size={15} /> Entrar
+              </button>
+            )}
+
             <button className="cart-button" onClick={() => setCartOpen(true)} aria-label="Abrir carrinho">
               <ShoppingBag size={19} />
               <span>Seu pedido</span>
@@ -264,77 +377,61 @@ export default function Home() {
       </header>
 
       <main>
-        {/* Info Strip at the top for immediate context without hero */}
+        {/* Info Strip */}
         <section className="info-strip" id="como-funciona">
           <div>
             <span className="info-icon"><Clock3 size={18} /></span>
-            <div><small>Funcionamento</small><strong>Seg a sex · 9:30–17:30</strong></div>
+            <div><small>Funcionamento</small><strong>Seg a Sex · 9:00–17:00</strong></div>
           </div>
           <div>
             <span className="info-icon"><MapPin size={18} /></span>
             <div><small>Entrega</small><strong>Delivery ou retirada em Cuiabá e VG</strong></div>
           </div>
           <div>
-            <span className="info-icon"><Sparkles size={18} /></span>
-            <div><small>Combos Promocionais</small><strong>Monte seu mix e economize no freezer</strong></div>
+            <span className="info-icon"><Package size={18} /></span>
+            <div><small>Combos Promocionais</small><strong>Monte seu Combo e economize</strong></div>
           </div>
         </section>
 
-        {/* Menu / Cardápio Section (Main Entry Point) */}
+        {/* Menu / Combos Section */}
         <section className="menu-section" id="cardapio">
           <div className="section-heading">
             <div>
-              <p className="kicker">Escolha sem complicar</p>
-              <h2>Cardápio HouseFit</h2>
+              <p className="kicker">Economia e Praticidade</p>
+              <h2>Combos HouseFit</h2>
             </div>
             <div className="search-box">
               <Search size={17} />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar no cardápio" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar combo..." />
             </div>
           </div>
 
-          <div className="category-row" role="tablist">
-            {categories.map((category) => (
-              <button
-                key={category}
-                className={`category-chip ${activeCategory === category ? "active" : ""}`}
-                onClick={() => setActiveCategory(category)}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-
-          <div className="menu-meta">
-            <span>{visibleProducts.length} opções disponíveis</span>
-            <button>Mais pedidos <ChevronDown size={15} /></button>
+          <div className="menu-meta" style={{ marginTop: 20 }}>
+            <span>{visibleCombos.length} opções de combos prontas para você montar</span>
           </div>
 
           <div className="product-grid">
-            {visibleProducts.map((item) => {
-              const isCombo = item.category === "Combos";
+            {visibleCombos.map((item) => {
               const inCartQty = cart
                 .filter((ci) => ci.productId === item.id)
                 .reduce((sum, ci) => sum + ci.quantity, 0);
 
               return (
-                <ProductCard
+                <ComboCard
                   key={item.id}
                   item={item}
-                  isCombo={isCombo}
                   inCartQty={inCartQty}
-                  onAddRegular={() => addRegularProduct(item)}
                   onOpenCombo={() => setComboModalProduct(item)}
                 />
               );
             })}
           </div>
 
-          {visibleProducts.length === 0 && (
+          {visibleCombos.length === 0 && (
             <div className="empty-state">
               <Search size={24} />
-              <strong>Nada encontrado ainda</strong>
-              <span>Tente outro termo ou escolha uma categoria.</span>
+              <strong>Nenhum combo encontrado</strong>
+              <span>Tente buscar por 5, 10, 20 marmitas ou caldos.</span>
             </div>
           )}
         </section>
@@ -344,8 +441,7 @@ export default function Home() {
             <p className="kicker">Nossa promessa</p>
             <h2>Comida gostosa também pode ser prática.</h2>
           </div>
-          <p>Você não precisa escolher entre sabor e rotina. A HouseFit deixa sua semana mais leve, uma marmita de cada vez.</p>
-          <Link href="/admin" className="text-link">Conhecer operação <ArrowRight size={16} /></Link>
+          <p>Você não precisa escolher entre sabor e rotina. A HouseFit deixa sua semana mais leve, um combo de cada vez.</p>
         </section>
       </main>
 
@@ -356,9 +452,9 @@ export default function Home() {
           </span>
           <p>Seu almoço resolvido com comida de verdade.</p>
         </div>
-        <div><small>ATENDIMENTO</small><strong>(65) 99984-6265</strong><span>contato@housefit.com.br</span></div>
+        <div><small>ATENDIMENTO</small><strong>(65) 99986-5093</strong><span>contato@housefit.com.br</span></div>
         <div><small>ONDE ESTAMOS</small><strong>Cuiabá e Várzea Grande</strong><span>Delivery e retirada</span></div>
-        <div><small>HORÁRIO</small><strong>Segunda a sexta</strong><span>9:30 às 17:30</span></div>
+        <div><small>HORÁRIO</small><strong>Segunda a sexta</strong><span>9:00 às 17:00</span></div>
       </footer>
 
       {notice && (
@@ -376,7 +472,7 @@ export default function Home() {
             <div className="drawer-header">
               <div>
                 <p className="kicker">Seu pedido</p>
-                <h3>{cartCount ? `${cartCount} item(ns)` : "Ainda vazio"}</h3>
+                <h3>{cartCount ? `${cartCount} combo(s)` : "Ainda vazio"}</h3>
               </div>
               <button className="icon-button" onClick={() => setCartOpen(false)}><X size={19} /></button>
             </div>
@@ -388,17 +484,15 @@ export default function Home() {
                     <div className="cart-item" key={item.key}>
                       <img src={item.product.image} alt={item.product.name} />
                       <div>
-                        {item.isCombo && (
-                          <div className="cart-combo-badge">
-                            <Sparkles size={11} /> Combo personalizado ({item.comboTarget} marmitas)
-                          </div>
-                        )}
+                        <div className="cart-combo-badge">
+                          <Package size={11} /> {item.product.name}
+                        </div>
                         <strong>{item.product.name}</strong>
                         <span>{formatBRL(item.product.price * item.quantity)}</span>
 
-                        {item.isCombo && item.comboSelections && item.comboSelections.length > 0 && (
+                        {item.comboSelections && item.comboSelections.length > 0 && (
                           <div className="cart-combo-items-list">
-                            <strong>Marmitas inclusas no combo:</strong>
+                            <strong>Marmitas escolhidas no combo:</strong>
                             {item.comboSelections.map((sel) => (
                               <div key={sel.product.id} className="cart-combo-item-line">
                                 <span>{sel.product.name}</span>
@@ -422,7 +516,7 @@ export default function Home() {
                             onClick={() => removeCartItem(item.key)}
                             className="icon-button"
                             style={{ width: 28, height: 28, color: "#8a9c94" }}
-                            title="Remover"
+                            title="Remover combo"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -484,9 +578,9 @@ export default function Home() {
             ) : (
               <div className="empty-cart">
                 <ShoppingBag size={36} />
-                <strong>Seu carrinho está esperando</strong>
-                <span>Escolha algumas marmitas ou monte um combo e volte aqui.</span>
-                <button className="secondary-button" onClick={() => setCartOpen(false)}>Ver cardápio</button>
+                <strong>Seu carrinho está vazio</strong>
+                <span>Escolha um dos nossos combos acima e monte suas marmitas favoritas.</span>
+                <button className="secondary-button" onClick={() => setCartOpen(false)}>Ver combos</button>
               </div>
             )}
           </aside>
@@ -515,7 +609,7 @@ export default function Home() {
               <input
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="Ex.: (65) 99984-0000"
+                placeholder="Ex.: (65) 99986-0000"
               />
             </label>
 
@@ -549,30 +643,34 @@ export default function Home() {
           onConfirm={(selections) => handleAddCombo(comboModalProduct, selections)}
         />
       )}
+
+      {/* Auth Modal (Login / Cadastro / Acesso ao Admin) */}
+      {authModalOpen && (
+        <AuthModal
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={handleLoginSuccess}
+        />
+      )}
     </div>
   );
 }
 
-function ProductCard({
+function ComboCard({
   item,
-  isCombo,
   inCartQty,
-  onAddRegular,
   onOpenCombo,
 }: {
   item: Product;
-  isCombo: boolean;
   inCartQty: number;
-  onAddRegular: () => void;
   onOpenCombo: () => void;
 }) {
-  const targetCount = isCombo ? getComboTargetCount(item) : 0;
+  const targetCount = getComboTargetCount(item);
 
   return (
     <article className="product-card">
       <div className="product-image-wrap">
         <img src={item.image} alt={item.name} />
-        <div className="product-tag">{item.tag || item.category}</div>
+        <div className="product-tag">{item.tag || "Combo"}</div>
         {inCartQty > 0 && (
           <div className="in-cart-badge">
             <Check size={13} /> {inCartQty} no pedido
@@ -586,27 +684,10 @@ function ProductCard({
         </div>
         <p>{item.description}</p>
         <div className="product-footer">
-          <small>{item.stock <= 10 ? `${item.stock} restantes` : isCombo ? `${targetCount} marmitas à sua escolha` : "Disponível hoje"}</small>
-
-          {isCombo ? (
-            <button className="add-button" onClick={onOpenCombo}>
-              <Sparkles size={14} /> {inCartQty > 0 ? "Personalizar outro" : "Montar combo"}
-            </button>
-          ) : inCartQty > 0 ? (
-            <div className="stepper">
-              <button aria-label="Diminuir" onClick={onAddRegular}>
-                <Minus size={15} />
-              </button>
-              <b>{inCartQty}</b>
-              <button aria-label="Aumentar" onClick={onAddRegular}>
-                <Plus size={15} />
-              </button>
-            </div>
-          ) : (
-            <button className="add-button" onClick={onAddRegular}>
-              Adicionar <Plus size={16} />
-            </button>
-          )}
+          <small>{targetCount} marmitas à sua escolha</small>
+          <button className="add-button" onClick={onOpenCombo}>
+            <Plus size={15} /> {inCartQty > 0 ? "Personalizar outro" : "Montar combo"}
+          </button>
         </div>
       </div>
     </article>
@@ -632,17 +713,13 @@ function ComboCustomizerModal({
   // Available marmitas with stock from inventory
   const availableMarmitas = useMemo(() => {
     return allProducts.filter((p) => {
-      // Must not be a combo itself
       if (p.category === "Combos") return false;
-      // Must have stock
       if (p.stock <= 0 || !p.available) return false;
 
-      // If this is combo-caldos, prioritize Caldos
       if (combo.id === "combo-caldos") {
         return p.category === "Caldos";
       }
 
-      // For standard meal combos: individual meals (Frango, Carne, Caldos)
       return p.category === "Frango" || p.category === "Carne" || p.category === "Caldos";
     });
   }, [allProducts, combo.id]);
@@ -702,7 +779,7 @@ function ComboCustomizerModal({
       <div className="combo-modal" onClick={(e) => e.stopPropagation()}>
         <div className="combo-modal-header">
           <div>
-            <span className="eyebrow"><Sparkles size={13} /> Monte seu Combo</span>
+            <span className="eyebrow"><Boxes size={13} /> Monte seu Combo</span>
             <h3>{combo.name}</h3>
             <p>Selecione exatamente <strong>{targetCount} marmitas</strong> com base no estoque disponível do nosso cardápio.</p>
           </div>
@@ -828,6 +905,225 @@ function ComboCustomizerModal({
             )}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Login & Cadastro Modal
+function AuthModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: (user: AuthUser) => void;
+}) {
+  const [tab, setTab] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanEmail || !cleanPass) {
+      setError("Preencha e-mail e senha.");
+      return;
+    }
+
+    // Check admin master credentials
+    if (
+      (cleanEmail === "admin@housefit.com.br" && cleanPass === "admin") ||
+      (cleanEmail === "admin" && cleanPass === "admin")
+    ) {
+      onSuccess({
+        id: "admin-master",
+        name: "Administrador HouseFit",
+        phone: "(65) 99986-5093",
+        email: "admin@housefit.com.br",
+        role: "admin",
+      });
+      return;
+    }
+
+    const registeredUsers = loadFromStorage<AuthUser[]>("housefit-auth-users", initialAuthUsers);
+    const user = registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user || user.password !== cleanPass) {
+      setError("E-mail ou senha incorretos.");
+      return;
+    }
+
+    onSuccess(user);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!name.trim()) {
+      setError("Informe seu nome completo.");
+      return;
+    }
+    if (!phone.trim()) {
+      setError("Informe seu WhatsApp.");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setError("Informe um e-mail válido.");
+      return;
+    }
+    if (password.length < 4) {
+      setError("A senha deve ter no mínimo 4 caracteres.");
+      return;
+    }
+
+    const registeredUsers = loadFromStorage<AuthUser[]>("housefit-auth-users", initialAuthUsers);
+    if (registeredUsers.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {
+      setError("Este e-mail já está cadastrado.");
+      return;
+    }
+
+    const newUser: AuthUser = {
+      id: `u-${Date.now()}`,
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+      role: email.trim().toLowerCase().includes("admin") ? "admin" : "user",
+    };
+
+    const nextUsers = [...registeredUsers, newUser];
+    saveToStorage("housefit-auth-users", nextUsers);
+
+    // Also register into customer list
+    const customers = loadFromStorage("housefit-customers", initialCustomers);
+    customers.unshift({
+      id: `c-${Date.now()}`,
+      name: newUser.name,
+      phone: newUser.phone,
+      initials: newUser.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase(),
+      orders: 0,
+      spent: 0,
+      lastOrder: "Recém cadastrado",
+      favorite: "A definir",
+    });
+    saveToStorage("housefit-customers", customers);
+
+    onSuccess(newUser);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Acesso HouseFit</p>
+        <h3 style={{ fontSize: 24 }}>{tab === "login" ? "Entrar na sua conta" : "Criar sua conta"}</h3>
+        <p className="modal-description">
+          {tab === "login"
+            ? "Acesse seus pedidos ou o painel administrativo."
+            : "Cadastre-se para agilizar seus pedidos e entregas."}
+        </p>
+
+        <div className="auth-tabs">
+          <button
+            type="button"
+            className={`auth-tab ${tab === "login" ? "active" : ""}`}
+            onClick={() => { setTab("login"); setError(""); }}
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            className={`auth-tab ${tab === "register" ? "active" : ""}`}
+            onClick={() => { setTab("register"); setError(""); }}
+          >
+            Criar conta
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ padding: "8px 12px", background: "#fbe2d9", color: "#b9573c", borderRadius: 8, fontSize: 11, fontWeight: 800, marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        {tab === "login" ? (
+          <form onSubmit={handleLogin} className="modal-form-grid" style={{ marginTop: 0 }}>
+            <div className="modal-form-group">
+              <label><Mail size={13} style={{ display: "inline", marginRight: 4 }} /> E-mail</label>
+              <input
+                type="email"
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+              />
+            </div>
+            <div className="modal-form-group">
+              <label><Lock size={13} style={{ display: "inline", marginRight: 4 }} /> Senha de acesso</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Sua senha"
+              />
+            </div>
+            <button type="submit" className="primary-button full" style={{ marginTop: 14 }}>
+              Entrar <ArrowRight size={16} />
+            </button>
+            <small style={{ color: "var(--muted)", textAlign: "center", display: "block", marginTop: 8 }}>
+              Para acessar o Painel Admin, utilize as credenciais de administrador.
+            </small>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className="modal-form-grid" style={{ marginTop: 0 }}>
+            <div className="modal-form-group">
+              <label><User size={13} style={{ display: "inline", marginRight: 4 }} /> Nome completo</label>
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex.: Mariana Costa"
+              />
+            </div>
+            <div className="modal-form-group">
+              <label><Phone size={13} style={{ display: "inline", marginRight: 4 }} /> WhatsApp (com DDD)</label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Ex.: (65) 99986-5093"
+              />
+            </div>
+            <div className="modal-form-group">
+              <label><Mail size={13} style={{ display: "inline", marginRight: 4 }} /> E-mail</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+              />
+            </div>
+            <div className="modal-form-group">
+              <label><Lock size={13} style={{ display: "inline", marginRight: 4 }} /> Crie uma senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 4 caracteres"
+              />
+            </div>
+            <button type="submit" className="primary-button full" style={{ marginTop: 14 }}>
+              Criar conta e entrar <Check size={16} />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

@@ -75,10 +75,10 @@ const product = (
 ): Product => ({ id, name, category, description, price, stock, cost, image, tag, available: stock > 0 });
 
 export const initialProducts: Product[] = [
-  product("combo-20", "Combo a partir de 20 marmitas", "Combos", "Escolha seus sabores favoritos e economize R$ 50 no freezer.", 480, 12, 312, mealImage, "Mais economia"),
-  product("combo-10", "Combo a partir de 10 marmitas", "Combos", "Refeições práticas para deixar a semana mais leve.", 245, 18, 160, bowlImage, "Favorito"),
-  product("combo-5", "Combo a partir de 5 marmitas", "Combos", "O jeito gostoso de começar uma rotina mais prática.", 125, 23, 83, proteinImage, "Para experimentar"),
-  product("combo-caldos", "Combo a partir de 10 caldos", "Combos", "Dias aconchegantes com caldo congelado e pronto em minutos.", 165, 7, 102, soupImage, "Combo"),
+  product("combo-20", "Combo de 20 marmitas", "Combos", "Escolha seus sabores favoritos e economize R$ 50 no freezer.", 480, 12, 312, mealImage, "Mais economia"),
+  product("combo-10", "Combo de 10 marmitas", "Combos", "Refeições práticas para deixar a semana mais leve.", 245, 18, 160, bowlImage, "Favorito"),
+  product("combo-5", "Combo de 5 marmitas", "Combos", "O jeito gostoso de começar uma rotina mais prática.", 125, 23, 83, proteinImage, "Para experimentar"),
+  product("combo-caldos", "Combo de 10 caldos", "Combos", "Dias aconchegantes com caldo congelado e pronto em minutos.", 165, 7, 102, soupImage, "Combo"),
   product("frango-pan-vermelho", "Panqueca de frango ao molho vermelho", "Frango", "2 discos, 100g de frango desfiado, molho de tomate e muçarela.", 26.5, 79, 11.2, mealImage),
   product("frango-pan-branco", "Panqueca de frango ao molho branco", "Frango", "2 discos, 100g de frango desfiado, molho branco e muçarela.", 26.5, 35, 11.4, mealImage),
   product("frango-escond-batatadoce", "Escondidinho de frango com purê de batata-doce", "Frango", "120g de frango, 160g de purê de batata-doce e queijo.", 26.5, 28, 12.1, bowlImage),
@@ -141,9 +141,9 @@ export const initialProducts: Product[] = [
 
 export const initialOrders: Order[] = [
   { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Preparando", channel: "Delivery", time: "há 8 min", payment: "Pix" },
-  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo a partir de 5 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 125, discountAmount: 12.5, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 112.5, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
+  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo de 5 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 125, discountAmount: 12.5, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 112.5, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
   { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Pronto", channel: "Delivery", time: "há 21 min", payment: "Pix" },
-  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo a partir de 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 245, discountAmount: 36.75, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 208.25, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
+  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo de 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 245, discountAmount: 36.75, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 208.25, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
   { id: "#HF-1044", customer: "Ana Souza", customerPhone: "(65) 98455-7788", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
   { id: "#HF-1043", customer: "Diego Rocha", customerPhone: "(65) 99344-9900", initials: "DR", items: 3, itemNames: ["Patinho moído, arroz e feijão carioca"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
 ];
@@ -207,7 +207,7 @@ export const monthlySales = [
 
 export const productReport = [
   { name: "Panqueca de frango ao molho vermelho", units: 182, revenue: 4823 },
-  { name: "Combo a partir de 10 marmitas", units: 94, revenue: 23030 },
+  { name: "Combo de 10 marmitas", units: 94, revenue: 23030 },
   { name: "Strogonoff de carne com arroz branco", units: 86, revenue: 2279 },
   { name: "Escondidinho de frango com purê de batata-doce", units: 77, revenue: 2040 },
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
