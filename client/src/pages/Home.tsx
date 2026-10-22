@@ -104,6 +104,14 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [comboModalProduct, setComboModalProduct] = useState<Product | null>(null);
   const [pendingPaymentOrder, setPendingPaymentOrder] = useState<Order | null>(null);
+  const [deliveryCity, setDeliveryCity] = useState<"cuiaba" | "varzea_grande" | "retirada" | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+
+  const deliveryFee = useMemo(() => {
+    if (deliveryCity === "cuiaba") return 12;
+    if (deliveryCity === "varzea_grande") return 17;
+    return 0;
+  }, [deliveryCity]);
 
   useEffect(() => {
     let isMounted = true;
@@ -152,7 +160,9 @@ export default function Home() {
     return (cartTotal * appliedPartner.discountPercent) / 100;
   }, [cartTotal, appliedPartner]);
 
-  const finalTotal = useMemo(() => Math.max(0, cartTotal - discountAmount), [cartTotal, discountAmount]);
+  const finalTotal = useMemo(() => {
+    return Math.max(0, cartTotal - discountAmount + deliveryFee);
+  }, [cartTotal, discountAmount, deliveryFee]);
 
   const handleApplyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
@@ -242,7 +252,7 @@ export default function Home() {
   };
 
   const confirmOrder = () => {
-    if (!customerName.trim() || !customerPhone.trim() || cart.length === 0) return;
+    if (!customerName.trim() || !customerPhone.trim() || !deliveryCity || cart.length === 0) return;
     const orders = loadFromStorage<Order[]>("housefit-orders", initialOrders);
     const orderItemsNames = cart.map((item) => {
       if (item.isCombo && item.comboSelections?.length) {
@@ -251,6 +261,9 @@ export default function Home() {
       }
       return `${item.quantity > 1 ? `${item.quantity}x ` : ""}${item.product.name}`;
     });
+
+    const cityName = deliveryCity === "cuiaba" ? "Cuiabá" : deliveryCity === "varzea_grande" ? "Várzea Grande" : "Retirada";
+    const channelType = deliveryCity === "retirada" ? "Retirada" : "Delivery";
 
     const newOrder: Order = {
       id: `#HF-${1050 + orders.length}`,
@@ -261,12 +274,15 @@ export default function Home() {
       itemNames: orderItemsNames,
       subtotal: cartTotal,
       discountAmount: discountAmount,
+      deliveryFee: deliveryFee,
+      deliveryCity: cityName,
+      deliveryAddress: deliveryAddress.trim() || undefined,
       couponCode: appliedPartner?.coupon,
       partnerId: appliedPartner?.id,
       partnerName: appliedPartner?.name,
       total: finalTotal,
       status: "Recebido",
-      channel: "Delivery",
+      channel: channelType,
       time: "agora",
       payment: "Pix",
     };
@@ -601,8 +617,89 @@ export default function Home() {
                 </div>
 
                 <div className="cart-summary">
+                  {/* Seletor de Cidade de Entrega Obrigatório */}
+                  <div style={{ marginBottom: 12, paddingBottom: 10, borderBottom: "1px dashed var(--line)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <small style={{ fontWeight: 800, color: "var(--ink-soft)" }}>
+                        Local de entrega <span style={{ color: "#e11d48" }}>*</span>
+                      </small>
+                      {!deliveryCity && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#d97706" }}>
+                          Obrigatório selecionar
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryCity("cuiaba")}
+                        style={{
+                          padding: "9px 10px",
+                          borderRadius: 8,
+                          border: `2px solid ${deliveryCity === "cuiaba" ? "#198038" : "var(--line)"}`,
+                          background: deliveryCity === "cuiaba" ? "#f2f9f4" : "#ffffff",
+                          color: deliveryCity === "cuiaba" ? "#198038" : "var(--ink)",
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          textAlign: "center",
+                          boxShadow: deliveryCity === "cuiaba" ? "0 0 0 2px rgba(25, 128, 56, 0.15)" : "none",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        Cuiabá
+                        <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: deliveryCity === "cuiaba" ? "#198038" : "#4b5563", marginTop: 2 }}>
+                          + R$ 12,00
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryCity("varzea_grande")}
+                        style={{
+                          padding: "9px 10px",
+                          borderRadius: 8,
+                          border: `2px solid ${deliveryCity === "varzea_grande" ? "#198038" : "var(--line)"}`,
+                          background: deliveryCity === "varzea_grande" ? "#f2f9f4" : "#ffffff",
+                          color: deliveryCity === "varzea_grande" ? "#198038" : "var(--ink)",
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          textAlign: "center",
+                          boxShadow: deliveryCity === "varzea_grande" ? "0 0 0 2px rgba(25, 128, 56, 0.15)" : "none",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        Várzea Grande
+                        <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: deliveryCity === "varzea_grande" ? "#198038" : "#4b5563", marginTop: 2 }}>
+                          + R$ 17,00
+                        </span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryCity("retirada")}
+                      style={{
+                        width: "100%",
+                        marginTop: 6,
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: `1px solid ${deliveryCity === "retirada" ? "#198038" : "var(--line)"}`,
+                        background: deliveryCity === "retirada" ? "#f2f9f4" : "transparent",
+                        color: deliveryCity === "retirada" ? "#198038" : "var(--ink-soft)",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Prefiro retirar no local (Sem taxa de entrega)
+                    </button>
+                  </div>
+
                   <div>
-                    <span>Subtotal</span>
+                    <span>Subtotal ({cartCount} combo{cartCount > 1 ? "s" : ""})</span>
                     <strong>{formatBRL(cartTotal)}</strong>
                   </div>
                   {appliedPartner && (
@@ -611,13 +708,39 @@ export default function Home() {
                       <strong>-{formatBRL(discountAmount)}</strong>
                     </div>
                   )}
+                  <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--ink-soft)" }}>
+                    <span>
+                      Taxa de entrega
+                      {deliveryCity === "cuiaba" ? " (Cuiabá)" : deliveryCity === "varzea_grande" ? " (Várzea Grande)" : deliveryCity === "retirada" ? " (Retirada)" : ""}
+                    </span>
+                    {deliveryCity ? (
+                      <strong style={{ color: "var(--ink)" }}>{deliveryFee > 0 ? formatBRL(deliveryFee) : "Grátis"}</strong>
+                    ) : (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#d97706" }}>Selecione acima</span>
+                    )}
+                  </div>
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)" }}>
                     <span>Total final</span>
                     <strong style={{ fontSize: 24, color: "var(--ink)" }}>{formatBRL(finalTotal)}</strong>
                   </div>
-                  <small>Taxa de entrega calculada na confirmação.</small>
-                  <button className="primary-button full" onClick={() => setCheckoutOpen(true)}>
-                    Continuar pedido <ArrowRight size={17} />
+                  <button
+                    className="primary-button full"
+                    disabled={!deliveryCity}
+                    onClick={() => {
+                      if (!deliveryCity) return;
+                      setCheckoutOpen(true);
+                    }}
+                    style={{
+                      marginTop: 10,
+                      opacity: deliveryCity ? 1 : 0.65,
+                      cursor: deliveryCity ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {deliveryCity ? (
+                      <>Continuar pedido <ArrowRight size={17} /></>
+                    ) : (
+                      "Selecione o local de entrega para continuar"
+                    )}
                   </button>
                 </div>
               </>
@@ -659,6 +782,18 @@ export default function Home() {
               />
             </label>
 
+            {/* Endereço de entrega se for delivery */}
+            {deliveryCity !== "retirada" && (
+              <label style={{ marginTop: 14 }}>
+                Endereço de entrega em {deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande"}
+                <input
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Rua, número, bairro e complemento"
+                />
+              </label>
+            )}
+
             {appliedPartner && (
               <div style={{ margin: "14px 0", padding: "10px 12px", background: "#e5efb8", borderRadius: 8, fontSize: 11, color: "#364811", fontWeight: 800 }}>
                 ✓ Desconto de {appliedPartner.discountPercent}% aplicado com cupom de {appliedPartner.name}
@@ -666,12 +801,21 @@ export default function Home() {
             )}
 
             <div className="checkout-total">
-              <span>Total a pagar</span>
+              <div>
+                <span>Total a pagar</span>
+                <small style={{ display: "block", fontSize: 11, color: "#777", fontWeight: 500 }}>
+                  {cartCount} combo(s) + taxa de entrega ({deliveryCity === "cuiaba" ? "Cuiabá" : deliveryCity === "varzea_grande" ? "Várzea Grande" : "Retirada"})
+                </small>
+              </div>
               <strong>{formatBRL(finalTotal)}</strong>
             </div>
             <button
               className="primary-button full"
-              disabled={!customerName.trim() || !customerPhone.trim()}
+              disabled={
+                !customerName.trim() ||
+                !customerPhone.trim() ||
+                (deliveryCity !== "retirada" && !deliveryAddress.trim())
+              }
               onClick={confirmOrder}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             >

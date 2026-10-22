@@ -24,6 +24,9 @@ export type Order = {
   itemNames: string[];
   subtotal?: number;
   discountAmount?: number;
+  deliveryFee?: number;
+  deliveryCity?: string;
+  deliveryAddress?: string;
   couponCode?: string;
   partnerId?: string;
   partnerName?: string;

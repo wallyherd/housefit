@@ -159,6 +159,7 @@ export async function createDbOrder(order: Order): Promise<boolean> {
       itemNames: JSON.stringify(order.itemNames),
       subtotal: (order.subtotal || order.total).toFixed(2),
       discountAmount: (order.discountAmount || 0).toFixed(2),
+      deliveryFee: (order.deliveryFee || 0).toFixed(2),
       couponCode: order.couponCode || null,
       partnerName: order.partnerName || null,
       total: order.total.toFixed(2),
