@@ -1,79 +1,111 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, integer, numeric, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
+export const roleEnum = pgEnum("role", ["user", "admin"]);
+export const statusEnum = pgEnum("order_status", ["Recebido", "Preparando", "Pronto", "Em entrega", "Concluído"]);
+export const channelEnum = pgEnum("order_channel", ["Delivery", "Retirada"]);
+export const movementTypeEnum = pgEnum("movement_type", ["entrada", "saida", "ajuste"]);
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 40 }),
+  password: text("password"),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  role: roleEnum("role").default("user").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const products = mysqlTable("products", {
-  id: int("id").autoincrement().primaryKey(),
+export const products = pgTable("products", {
+  id: serial("id").primaryKey(),
   slug: varchar("slug", { length: 120 }).notNull().unique(),
   name: varchar("name", { length: 180 }).notNull(),
   category: varchar("category", { length: 40 }).notNull(),
   description: text("description"),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  cost: decimal("cost", { precision: 10, scale: 2 }).notNull(),
-  stock: int("stock").default(0).notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  cost: numeric("cost", { precision: 10, scale: 2 }).notNull(),
+  stock: integer("stock").default(0).notNull(),
   imageUrl: text("imageUrl"),
-  isAvailable: int("isAvailable").default(1).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  tag: varchar("tag", { length: 60 }),
+  isAvailable: integer("isAvailable").default(1).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const customers = mysqlTable("customers", {
-  id: int("id").autoincrement().primaryKey(),
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
   name: varchar("name", { length: 160 }).notNull(),
   phone: varchar("phone", { length: 40 }),
   email: varchar("email", { length: 320 }),
-  totalOrders: int("totalOrders").default(0).notNull(),
-  totalSpent: decimal("totalSpent", { precision: 12, scale: 2 }).default("0").notNull(),
-  lastOrderAt: timestamp("lastOrderAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  totalOrders: integer("totalOrders").default(0).notNull(),
+  totalSpent: numeric("totalSpent", { precision: 12, scale: 2 }).default("0").notNull(),
+  favorite: varchar("favorite", { length: 180 }),
+  lastOrderAt: timestamp("lastOrderAt", { withTimezone: true }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const orders = mysqlTable("orders", {
-  id: int("id").autoincrement().primaryKey(),
+export const orders = pgTable("orders", {
+  id: serial("id").primaryKey(),
   orderNumber: varchar("orderNumber", { length: 30 }).notNull().unique(),
-  customerId: int("customerId"),
+  customerId: integer("customerId"),
   customerName: varchar("customerName", { length: 160 }).notNull(),
-  status: mysqlEnum("status", ["Recebido", "Preparando", "Pronto", "Em entrega", "Concluído"]).default("Recebido").notNull(),
-  channel: mysqlEnum("channel", ["Delivery", "Retirada"]).default("Delivery").notNull(),
+  customerPhone: varchar("customerPhone", { length: 40 }),
+  status: statusEnum("status").default("Recebido").notNull(),
+  channel: channelEnum("channel").default("Delivery").notNull(),
   paymentMethod: varchar("paymentMethod", { length: 60 }),
-  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-  deliveryFee: decimal("deliveryFee", { precision: 12, scale: 2 }).default("0").notNull(),
-  total: decimal("total", { precision: 12, scale: 2 }).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  itemNames: text("itemNames"), // JSON string array
+  itemsCount: integer("itemsCount").default(1).notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+  discountAmount: numeric("discountAmount", { precision: 12, scale: 2 }).default("0").notNull(),
+  couponCode: varchar("couponCode", { length: 60 }),
+  partnerName: varchar("partnerName", { length: 160 }),
+  deliveryFee: numeric("deliveryFee", { precision: 12, scale: 2 }).default("0").notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const orderItems = mysqlTable("orderItems", {
-  id: int("id").autoincrement().primaryKey(),
-  orderId: int("orderId").notNull(),
-  productId: int("productId"),
+export const orderItems = pgTable("orderItems", {
+  id: serial("id").primaryKey(),
+  orderId: integer("orderId").notNull(),
+  productId: integer("productId"),
   productName: varchar("productName", { length: 180 }).notNull(),
-  quantity: int("quantity").notNull(),
-  unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }).notNull(),
-  unitCost: decimal("unitCost", { precision: 10, scale: 2 }).notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: numeric("unitPrice", { precision: 10, scale: 2 }).notNull(),
+  unitCost: numeric("unitCost", { precision: 10, scale: 2 }).notNull(),
 });
 
-export const inventoryMovements = mysqlTable("inventoryMovements", {
-  id: int("id").autoincrement().primaryKey(),
-  productId: int("productId").notNull(),
-  type: mysqlEnum("type", ["entrada", "saida", "ajuste"]).notNull(),
-  quantity: int("quantity").notNull(),
+export const inventoryMovements = pgTable("inventoryMovements", {
+  id: serial("id").primaryKey(),
+  productId: integer("productId").notNull(),
+  type: movementTypeEnum("type").notNull(),
+  quantity: integer("quantity").notNull(),
   reason: varchar("reason", { length: 180 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const partners = pgTable("partners", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  phone: varchar("phone", { length: 40 }),
+  coupon: varchar("coupon", { length: 60 }).notNull().unique(),
+  discountPercent: integer("discountPercent").default(10).notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
 export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
 export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = typeof customers.$inferInsert;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type Partner = typeof partners.$inferSelect;
+export type InsertPartner = typeof partners.$inferInsert;

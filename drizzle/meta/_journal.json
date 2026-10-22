@@ -1,19 +1,19 @@
 {
   "version": "7",
-  "dialect": "mysql",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1788785580464,
-      "tag": "0000_initial_users",
+      "version": "7",
+      "when": 1792697712009,
+      "tag": "0000_orange_zuras",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "5",
-      "when": 1792497460756,
-      "tag": "0001_living_eternals",
+      "version": "7",
+      "when": 1792698302322,
+      "tag": "0001_kind_guardsmen",
       "breakpoints": true
     }
   ]

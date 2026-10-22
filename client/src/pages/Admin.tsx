@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -52,6 +52,17 @@ import {
   type Partner,
   type Product,
 } from "@/lib/demoData";
+import {
+  fetchDbProducts,
+  upsertDbProduct,
+  fetchDbOrders,
+  updateDbOrderStatus,
+  fetchDbCustomers,
+  recordCustomerPurchase,
+  fetchDbPartners,
+  saveDbPartner,
+} from "@/lib/supabaseService";
+import { getInfinitePayConfig, saveInfinitePayConfig, type InfinitePayConfig } from "@/lib/infinitepay";
 
 type Section = "Visão geral" | "Pedidos" | "Produtos & estoque" | "Clientes" | "Indicações" | "Relatórios";
 
@@ -82,6 +93,39 @@ export default function Admin() {
   const [newCustomerModalOpen, setNewCustomerModalOpen] = useState(false);
   const [newPartnerModalOpen, setNewPartnerModalOpen] = useState(false);
   const [editProductModal, setEditProductModal] = useState<Product | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
+  // Sincronização inicial com o banco Supabase
+  useEffect(() => {
+    let isMounted = true;
+    fetchDbProducts().then((data) => {
+      if (isMounted && data.length > 0) {
+        setProducts(data);
+        saveToStorage(PRODUCTS_STORAGE_KEY, data);
+      }
+    });
+    fetchDbOrders().then((data) => {
+      if (isMounted && data.length > 0) {
+        setOrders(data);
+        saveToStorage("housefit-orders", data);
+      }
+    });
+    fetchDbCustomers().then((data) => {
+      if (isMounted && data.length > 0) {
+        setCustomers(data);
+        saveToStorage("housefit-customers", data);
+      }
+    });
+    fetchDbPartners().then((data) => {
+      if (isMounted && data.length > 0) {
+        setPartners(data);
+        saveToStorage("housefit-partners", data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const showToast = (msg: string) => {
     setNotice(msg);
@@ -92,13 +136,21 @@ export default function Admin() {
     const next = orders.map((order) => (order.id === id ? { ...order, status } : order));
     setOrders(next);
     saveToStorage("housefit-orders", next);
+    // Atualizar no Supabase
+    updateDbOrderStatus(id, status);
     showToast(`Pedido ${id} atualizado para ${status.toLowerCase()}.`);
   };
 
   const toggleAvailability = (id: string) => {
-    const next = products.map((product) =>
-      product.id === id ? { ...product, available: !product.available } : product
-    );
+    const next = products.map((product) => {
+      if (product.id === id) {
+        const updated = { ...product, available: !product.available };
+        // Atualizar no Supabase
+        upsertDbProduct(updated);
+        return updated;
+      }
+      return product;
+    });
     setProducts(next);
     saveToStorage(PRODUCTS_STORAGE_KEY, next);
     saveToStorage("housefit-products", next);
@@ -111,6 +163,8 @@ export default function Admin() {
         if (updates.stock !== undefined) {
           updated.available = updated.stock > 0;
         }
+        // Atualizar no Supabase
+        upsertDbProduct(updated);
         return updated;
       }
       return product;
@@ -151,6 +205,8 @@ export default function Admin() {
     const next = [newCustomer, ...customers];
     setCustomers(next);
     saveToStorage("housefit-customers", next);
+    // Persistir no Supabase
+    recordCustomerPurchase(name.trim(), phone.trim(), 0, "A definir");
     setNewCustomerModalOpen(false);
     showToast(`Cliente ${name} cadastrado com sucesso!`);
   };
@@ -175,6 +231,15 @@ export default function Admin() {
     const next = [newPartner, ...partners];
     setPartners(next);
     saveToStorage("housefit-partners", next);
+    // Persistir no Supabase
+    saveDbPartner({
+      name: name.trim(),
+      phone: phone.trim(),
+      coupon: cleanCoupon,
+      discountPercent: Number(discountPercent) || 10,
+      active: true,
+      createdAt: new Date().toISOString(),
+    });
     setNewPartnerModalOpen(false);
     showToast(`Parceiro ${name} cadastrado com cupom ${cleanCoupon} (${discountPercent}% OFF)!`);
   };
@@ -232,7 +297,9 @@ export default function Admin() {
               <span>Combos e parceiros trazem 3,2x mais clientes recorrentes.</span>
             </div>
           </div>
-          <button className="sidebar-settings"><Settings2 size={17} /> Configurações</button>
+          <button className="sidebar-settings" onClick={() => setSettingsModalOpen(true)}>
+            <Settings2 size={17} /> Configurações
+          </button>
           <div className="user-row">
             <div className="user-avatar">AD</div>
             <div>
@@ -342,6 +409,14 @@ export default function Admin() {
             updateProductFields(editProductModal.id, updates);
             setEditProductModal(null);
           }}
+        />
+      )}
+
+      {/* Settings Modal (InfinitePay) */}
+      {settingsModalOpen && (
+        <SettingsModal
+          onClose={() => setSettingsModalOpen(false)}
+          onSave={() => showToast("Configurações da InfinitePay atualizadas com sucesso!")}
         />
       )}
     </div>
@@ -1425,6 +1500,95 @@ function EditProductModal({
           }}
         >
           Salvar alterações <Check size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Modal for InfinitePay configuration
+function SettingsModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const currentConfig = getInfinitePayConfig();
+  const [pixKey, setPixKey] = useState(currentConfig.pixKey);
+  const [handle, setHandle] = useState(currentConfig.handle);
+  const [merchantName, setMerchantName] = useState(currentConfig.merchantName);
+  const [merchantCity, setMerchantCity] = useState(currentConfig.merchantCity);
+
+  const handleSave = () => {
+    saveInfinitePayConfig({
+      pixKey: pixKey.trim(),
+      handle: handle.trim(),
+      merchantName: merchantName.trim().toUpperCase(),
+      merchantCity: merchantCity.trim().toUpperCase(),
+    });
+    onSave();
+    onClose();
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Gateway de Pagamentos</p>
+        <h3 style={{ fontSize: 22 }}>Configuração InfinitePay</h3>
+        <p className="modal-description">
+          Ajuste as chaves de recebimento para Pix e Cartão de Crédito da sua conta InfinitePay.
+        </p>
+
+        <div className="modal-form-grid">
+          <div className="modal-form-group">
+            <label>Chave Pix da conta InfinitePay (CNPJ, e-mail, celular ou aleatória)</label>
+            <input
+              value={pixKey}
+              onChange={(e) => setPixKey(e.target.value)}
+              placeholder="Ex.: contato@housefit.com.br"
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>InfiniteTag ou Link de Pagamento (ex: housefit ou URL)</label>
+            <input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="Ex.: housefit"
+            />
+            <small style={{ color: "#777", fontSize: 11, marginTop: 3 }}>
+              Seus clientes poderão abrir o checkout da InfinitePay em loja.infinitepay.io/{handle || "..."}
+            </small>
+          </div>
+
+          <div className="modal-form-group">
+            <label>Nome do Recebedor no Pix (até 25 letras)</label>
+            <input
+              value={merchantName}
+              onChange={(e) => setMerchantName(e.target.value)}
+              placeholder="Ex.: HOUSEFIT"
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>Cidade no Pix</label>
+            <input
+              value={merchantCity}
+              onChange={(e) => setMerchantCity(e.target.value)}
+              placeholder="Ex.: CUIABA"
+            />
+          </div>
+        </div>
+
+        <button
+          className="primary-button full"
+          style={{ marginTop: 20 }}
+          disabled={!pixKey.trim()}
+          onClick={handleSave}
+        >
+          Salvar configurações InfinitePay <Check size={16} />
         </button>
       </div>
     </div>

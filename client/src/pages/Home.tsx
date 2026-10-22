@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
@@ -36,6 +36,15 @@ import {
   type Partner,
   type Product,
 } from "@/lib/demoData";
+import {
+  fetchDbProducts,
+  createDbOrder,
+  recordCustomerPurchase,
+  fetchDbPartners,
+  authenticateDbUser,
+  registerDbUser,
+} from "@/lib/supabaseService";
+import { PaymentModal } from "@/components/PaymentModal";
 
 export type CartItem = {
   key: string;
@@ -82,7 +91,7 @@ export function getComboTargetCount(product: Product): number {
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [products] = useState<Product[]>(() => getInitialOrStoredProducts());
+  const [products, setProducts] = useState<Product[]>(() => getInitialOrStoredProducts());
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>(() => loadFromStorage("housefit-cart", []));
   const [cartOpen, setCartOpen] = useState(false);
@@ -94,6 +103,25 @@ export default function Home() {
   const [couponError, setCouponError] = useState("");
   const [notice, setNotice] = useState("");
   const [comboModalProduct, setComboModalProduct] = useState<Product | null>(null);
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchDbProducts().then((dbProducts) => {
+      if (isMounted && dbProducts.length > 0) {
+        setProducts(dbProducts);
+        saveToStorage(PRODUCTS_STORAGE_KEY, dbProducts);
+      }
+    });
+    fetchDbPartners().then((dbPartners) => {
+      if (isMounted && dbPartners.length > 0) {
+        saveToStorage("housefit-partners", dbPartners);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Authentication State
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -245,7 +273,12 @@ export default function Home() {
 
     saveToStorage("housefit-orders", [newOrder, ...orders]);
 
-    // Synchronize customer into housefit-customers
+    // Persist order to Supabase database
+    createDbOrder(newOrder);
+
+    // Synchronize customer into housefit-customers & Supabase
+    recordCustomerPurchase(customerName, customerPhone, finalTotal, cart[0]?.product.name || "Combo HouseFit");
+
     const customers = loadFromStorage("housefit-customers", initialCustomers);
     const existingIndex = customers.findIndex(
       (c) => c.name.toLowerCase() === customerName.toLowerCase() || (customerPhone && c.phone === customerPhone)
@@ -267,17 +300,27 @@ export default function Home() {
         favorite: cart[0]?.product.name || "Combo HouseFit",
       });
     }
-    saveToStorage("housefit-customers", customers);
+    // Abre modal de pagamento InfinitePay
+    setPendingPaymentOrder(newOrder);
+    setCheckoutOpen(false);
+  };
 
+  const handlePaymentSuccess = (paymentMethod: string) => {
+    if (pendingPaymentOrder) {
+      const updatedOrder = { ...pendingPaymentOrder, payment: paymentMethod };
+      const orders = loadFromStorage<Order[]>("housefit-orders", initialOrders);
+      const nextOrders = orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+      saveToStorage("housefit-orders", nextOrders);
+    }
     saveCart([]);
+    setPendingPaymentOrder(null);
+    setCartOpen(false);
     setCustomerName(currentUser?.name || "");
     setCustomerPhone(currentUser?.phone || "");
     setAppliedPartner(null);
     setCouponInput("");
-    setCheckoutOpen(false);
-    setCartOpen(false);
-    setNotice("Pedido recebido! A HouseFit já começou a preparar tudo.");
-    window.setTimeout(() => setNotice(""), 4500);
+    setNotice("Pagamento e pedido confirmados com sucesso! Enviando para o WhatsApp da HouseFit.");
+    window.setTimeout(() => setNotice(""), 6000);
   };
 
   return (
@@ -630,11 +673,29 @@ export default function Home() {
               className="primary-button full"
               disabled={!customerName.trim() || !customerPhone.trim()}
               onClick={confirmOrder}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             >
-              Confirmar pedido <Check size={17} />
+              Ir para pagamento InfinitePay <ArrowRight size={17} />
             </button>
           </div>
         </div>
+      )}
+
+      {/* InfinitePay Payment Modal */}
+      {pendingPaymentOrder && (
+        <PaymentModal
+          orderNumber={pendingPaymentOrder.id.replace("#", "")}
+          total={pendingPaymentOrder.total}
+          customerName={pendingPaymentOrder.customer}
+          customerPhone={pendingPaymentOrder.customerPhone || ""}
+          itemsSummary={pendingPaymentOrder.itemNames.join(", ")}
+          onClose={() => {
+            setPendingPaymentOrder(null);
+            setNotice(`Pedido ${pendingPaymentOrder.id} registrado!`);
+            window.setTimeout(() => setNotice(""), 4000);
+          }}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
 
       {/* Interactive Combo Customizer Modal */}
@@ -932,7 +993,7 @@ function AuthModal({
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -944,7 +1005,24 @@ function AuthModal({
       return;
     }
 
-    // Check admin master credentials
+    // 1. Tentar autenticar diretamente pelo banco de dados Supabase
+    try {
+      const dbUser = await authenticateDbUser(cleanEmail, cleanPass);
+      if (dbUser) {
+        onSuccess({
+          id: dbUser.id,
+          name: dbUser.name,
+          phone: dbUser.phone,
+          email: dbUser.email,
+          role: dbUser.role,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("Falha ao checar usuário no Supabase:", err);
+    }
+
+    // 2. Fallback de credenciais admin master
     if (
       (cleanEmail === "admin@housefit.com.br" && cleanPass === "admin") ||
       (cleanEmail === "admin" && cleanPass === "admin")
@@ -970,7 +1048,7 @@ function AuthModal({
     onSuccess(user);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -997,8 +1075,21 @@ function AuthModal({
       return;
     }
 
+    // Registrar no Supabase
+    let dbUserRegistered = null;
+    try {
+      dbUserRegistered = await registerDbUser({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        password: password.trim(),
+      });
+    } catch (err) {
+      console.warn("Erro ao registrar no Supabase:", err);
+    }
+
     const newUser: AuthUser = {
-      id: `u-${Date.now()}`,
+      id: dbUserRegistered ? dbUserRegistered.id : `u-${Date.now()}`,
       name: name.trim(),
       phone: phone.trim(),
       email: email.trim().toLowerCase(),
@@ -1009,7 +1100,9 @@ function AuthModal({
     const nextUsers = [...registeredUsers, newUser];
     saveToStorage("housefit-auth-users", nextUsers);
 
-    // Also register into customer list
+    // Also register into customer list & Supabase
+    recordCustomerPurchase(newUser.name, newUser.phone, 0, "A definir");
+
     const customers = loadFromStorage("housefit-customers", initialCustomers);
     customers.unshift({
       id: `c-${Date.now()}`,
