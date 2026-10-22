@@ -1,0 +1,112 @@
+- generic [ref=f1e2]:
+  - region "Notifications alt+T"
+  - generic [ref=f1e3]:
+    - banner [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - link "HouseFit início" [ref=f1e6] [cursor=pointer]:
+          - /url: /
+          - img "HouseFit - Marmita Saudável" [ref=f1e7]
+        - generic [ref=f1e8]:
+          - button "Entrar" [ref=f1e9] [cursor=pointer]
+          - button "Abrir carrinho" [ref=f1e13] [cursor=pointer]:
+            - generic [ref=f1e17]: Seu pedido
+    - main [ref=f1e18]:
+      - generic [ref=f1e19]:
+        - generic [ref=f1e25]:
+          - generic [ref=f1e26]: Funcionamento
+          - strong [ref=f1e27]: Seg a Sex · 9:00–17:00
+        - generic [ref=f1e33]:
+          - generic [ref=f1e34]: Entrega
+          - strong [ref=f1e35]: Delivery ou retirada em Cuiabá e VG
+        - generic [ref=f1e42]:
+          - generic [ref=f1e43]: Combos Promocionais
+          - strong [ref=f1e44]: Monte seu Combo e economize
+      - generic [ref=f1e45]:
+        - generic [ref=f1e46]:
+          - generic [ref=f1e47]:
+            - paragraph [ref=f1e48]: Economia e Praticidade
+            - heading "Combos HouseFit" [level=2] [ref=f1e49]
+          - textbox "Buscar combo..." [ref=f1e54]
+        - generic [ref=f1e55]: 5 opções de combos prontas para você montar
+        - generic [ref=f1e57]:
+          - article [ref=f1e58]:
+            - generic [ref=f1e59]:
+              - img "Combo 20 marmitas" [ref=f1e60]
+              - generic [ref=f1e61]: Mais economia
+            - generic [ref=f1e62]:
+              - generic [ref=f1e63]:
+                - heading "Combo 20 marmitas" [level=3] [ref=f1e64]
+                - strong [ref=f1e65]: R$ 449,00
+              - paragraph [ref=f1e66]: Escolha seus sabores favoritos e garanta o mês todo no freezer com máxima economia.
+              - generic [ref=f1e67]:
+                - generic [ref=f1e68]: 20 marmitas à sua escolha
+                - button "Montar combo" [ref=f1e69] [cursor=pointer]
+          - article [ref=f1e71]:
+            - generic [ref=f1e72]:
+              - img "Combo 10 marmitas" [ref=f1e73]
+              - generic [ref=f1e74]: Favorito
+            - generic [ref=f1e75]:
+              - generic [ref=f1e76]:
+                - heading "Combo 10 marmitas" [level=3] [ref=f1e77]
+                - strong [ref=f1e78]: R$ 229,00
+              - paragraph [ref=f1e79]: Refeições práticas para deixar a semana mais leve e saborosa.
+              - generic [ref=f1e80]:
+                - generic [ref=f1e81]: 10 marmitas à sua escolha
+                - button "Montar combo" [ref=f1e82] [cursor=pointer]
+          - article [ref=f1e84]:
+            - generic [ref=f1e85]:
+              - img "Combo 05 marmitas" [ref=f1e86]
+              - generic [ref=f1e87]: Para experimentar
+            - generic [ref=f1e88]:
+              - generic [ref=f1e89]:
+                - heading "Combo 05 marmitas" [level=3] [ref=f1e90]
+                - strong [ref=f1e91]: R$ 119,00
+              - paragraph [ref=f1e92]: O jeito gostoso de começar uma rotina saudável e prática.
+              - generic [ref=f1e93]:
+                - generic [ref=f1e94]: 5 marmitas à sua escolha
+                - button "Montar combo" [ref=f1e95] [cursor=pointer]
+          - article [ref=f1e97]:
+            - generic [ref=f1e98]:
+              - img "Combo 10 caldos" [ref=f1e99]
+              - generic [ref=f1e100]: Favorito
+            - generic [ref=f1e101]:
+              - generic [ref=f1e102]:
+                - heading "Combo 10 caldos" [level=3] [ref=f1e103]
+                - strong [ref=f1e104]: R$ 159,00
+              - paragraph [ref=f1e105]: Dias aconchegantes com caldo congelado e pronto em minutos.
+              - generic [ref=f1e106]:
+                - generic [ref=f1e107]: 10 marmitas à sua escolha
+                - button "Montar combo" [ref=f1e108] [cursor=pointer]
+          - article [ref=f1e110]:
+            - generic [ref=f1e111]:
+              - img "Combo 20 caldos" [ref=f1e112]
+              - generic [ref=f1e113]: Mais economia
+            - generic [ref=f1e114]:
+              - generic [ref=f1e115]:
+                - heading "Combo 20 caldos" [level=3] [ref=f1e116]
+                - strong [ref=f1e117]: R$ 299,00
+              - paragraph [ref=f1e118]: Variedade de caldos para aquecer suas noites com o melhor custo-benefício.
+              - generic [ref=f1e119]:
+                - generic [ref=f1e120]: 20 marmitas à sua escolha
+                - button "Montar combo" [ref=f1e121] [cursor=pointer]
+      - generic [ref=f1e123]:
+        - generic [ref=f1e124]:
+          - paragraph [ref=f1e125]: Nossa promessa
+          - heading "Comida gostosa também pode ser prática." [level=2] [ref=f1e126]
+        - paragraph [ref=f1e127]: Você não precisa escolher entre sabor e rotina. A HouseFit deixa sua semana mais leve, um combo de cada vez.
+    - contentinfo [ref=f1e128]:
+      - generic [ref=f1e129]:
+        - img "HouseFit - Marmita Saudável" [ref=f1e131]
+        - paragraph [ref=f1e132]: Seu almoço resolvido com comida de verdade.
+      - generic [ref=f1e133]:
+        - generic [ref=f1e134]: ATENDIMENTO
+        - strong [ref=f1e135]: (65) 99986-5093
+        - generic [ref=f1e136]: contato@housefit.com.br
+      - generic [ref=f1e137]:
+        - generic [ref=f1e138]: ONDE ESTAMOS
+        - strong [ref=f1e139]: Cuiabá e Várzea Grande
+        - generic [ref=f1e140]: Delivery e retirada
+      - generic [ref=f1e141]:
+        - generic [ref=f1e142]: HORÁRIO
+        - strong [ref=f1e143]: Segunda a sexta
+        - generic [ref=f1e144]: 9:00 às 17:00

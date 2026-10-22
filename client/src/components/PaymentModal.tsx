@@ -26,11 +26,45 @@ export function PaymentModal({
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutos
   const [paymentDetails, setPaymentDetails] = useState<InfinitePayPaymentDetails | null>(null);
+  const [officialCheckoutUrl, setOfficialCheckoutUrl] = useState<string | null>(null);
+  const [loadingCheckoutUrl, setLoadingCheckoutUrl] = useState(false);
 
   useEffect(() => {
     const details = createInfinitePayPayment(orderNumber, total);
     setPaymentDetails(details);
-  }, [orderNumber, total]);
+
+    // Gerar link oficial com valor travado na API da InfinitePay
+    let isCancelled = false;
+    setLoadingCheckoutUrl(true);
+
+    fetch("/api/infinitepay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderNumber,
+        amount: total,
+        description: `Pedido #${orderNumber} (${itemsSummary.slice(0, 70)})`,
+        customerName,
+        customerPhone,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isCancelled && data?.success && data?.url) {
+          setOfficialCheckoutUrl(data.url);
+        }
+      })
+      .catch((err) => {
+        console.warn("Aviso ao conectar com a API da InfinitePay:", err);
+      })
+      .finally(() => {
+        if (!isCancelled) setLoadingCheckoutUrl(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [orderNumber, total, itemsSummary, customerName, customerPhone]);
 
   // Contador regressivo de expiração do Pix
   useEffect(() => {
@@ -239,12 +273,37 @@ export function PaymentModal({
               <span style={{ padding: "4px 8px", background: "#f0f2f5", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Hipercard</span>
             </div>
 
+            {officialCheckoutUrl ? (
+              <div
+                style={{
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  marginBottom: 14,
+                  fontSize: 12,
+                  color: "#166534",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <ShieldCheck size={16} /> Link exclusivo gerado: valor de {formatBRL(total)} travado
+              </div>
+            ) : loadingCheckoutUrl ? (
+              <div style={{ fontSize: 11, color: "#666", marginBottom: 12 }}>
+                Gerando link oficial na InfinitePay com o valor travado...
+              </div>
+            ) : null}
+
             <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "0 0 16px", lineHeight: 1.5 }}>
-              O pagamento por cartão é processado com total segurança através do <b>checkout oficial da InfinitePay</b>, com opção de parcelamento.
+              O pagamento por cartão é processado com total segurança através do <b>checkout oficial da InfinitePay</b>, com opção de parcelamento em até 12x.
             </p>
 
             <a
-              href={paymentDetails.cardPaymentUrl}
+              href={officialCheckoutUrl || paymentDetails.cardPaymentUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -263,7 +322,7 @@ export function PaymentModal({
                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
               }}
             >
-              Abrir Checkout InfinitePay <ExternalLink size={16} />
+              {loadingCheckoutUrl ? "Carregando Checkout..." : "Abrir Checkout InfinitePay"} <ExternalLink size={16} />
             </a>
           </div>
         )}
