@@ -113,6 +113,7 @@ export default function Home() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
+  const [postPaymentModalOpen, setPostPaymentModalOpen] = useState(false);
 
   const deliveryFee = useMemo(() => {
     if (deliveryCity === "cuiaba") return 12;
@@ -282,7 +283,10 @@ export default function Home() {
         setCartOpen(false);
         setCheckoutOpen(false);
         setRegisterModalOpen(false);
-        window.location.href = data.url;
+        // Abre o checkout oficial da InfinitePay em outra aba
+        window.open(data.url, "_blank");
+        // Exibe o modal "Quase lá..." na página da HouseFit
+        setPostPaymentModalOpen(true);
         return;
       }
       throw new Error(data?.message || "Não foi possível gerar o link");
@@ -292,7 +296,8 @@ export default function Home() {
       setCartOpen(false);
       setCheckoutOpen(false);
       setRegisterModalOpen(false);
-      window.location.href = "https://loja.infinitepay.io/lethicia-vieira-pol";
+      window.open("https://loja.infinitepay.io/lethicia-vieira-pol", "_blank");
+      setPostPaymentModalOpen(true);
     } finally {
       setIsRedirectingPayment(false);
     }
@@ -929,6 +934,70 @@ export default function Home() {
               ) : (
                 <>Ir para o pagamento <ArrowRight size={17} /></>
               )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Quase lá... Confirmação WhatsApp */}
+      {postPaymentModalOpen && (
+        <div className="modal-backdrop" onClick={() => setPostPaymentModalOpen(false)}>
+          <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440, textAlign: "center" }}>
+            <button className="modal-close" onClick={() => setPostPaymentModalOpen(false)} aria-label="Fechar">
+              <X size={18} />
+            </button>
+            
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#e8f5e9", color: "#198038", display: "inline-flex", alignItems: "center", justifyContent: "center", margin: "4px auto 14px" }}>
+              <Check size={28} />
+            </div>
+
+            <h3 style={{ fontSize: 24, margin: "0 0 8px" }}>Quase lá...</h3>
+            
+            <p className="modal-description" style={{ fontSize: 14, lineHeight: 1.5, margin: "0 0 22px", color: "var(--ink-soft)" }}>
+              Após o pagamento nos envie uma confirmação pelo WhatsApp para que possamos comunicar sobre a entrega
+            </p>
+
+            <a
+              href={`https://wa.me/5565999865093?text=${encodeURIComponent(
+                `Olá HouseFit! 👋 Realizei o pagamento do meu pedido pelo site.\n\n*Cliente:* ${customerName}\n*WhatsApp:* ${customerPhone}\n\nSegue a confirmação do pagamento!`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="primary-button full"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "14px 20px",
+                fontSize: 15,
+                fontWeight: 800,
+                background: "#25D366",
+                borderColor: "#25D366",
+                color: "#ffffff",
+                textDecoration: "none",
+                borderRadius: 10,
+                boxShadow: "0 4px 12px rgba(37, 211, 102, 0.25)",
+              }}
+            >
+              Confirmar no WhatsApp <ArrowRight size={17} />
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setPostPaymentModalOpen(false)}
+              style={{
+                marginTop: 14,
+                background: "transparent",
+                border: "none",
+                color: "#6b7280",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "6px",
+              }}
+            >
+              Concluir e voltar ao início
             </button>
           </div>
         </div>
