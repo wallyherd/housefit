@@ -490,21 +490,7 @@ export default function Home() {
       </header>
 
       <main>
-        {/* Info Strip */}
-        <section className="info-strip" id="como-funciona">
-          <div>
-            <span className="info-icon"><Clock3 size={18} /></span>
-            <div><small>Funcionamento</small><strong>Seg a Sex · 9:00–17:00</strong></div>
-          </div>
-          <div>
-            <span className="info-icon"><MapPin size={18} /></span>
-            <div><small>Entrega</small><strong>Delivery ou retirada em Cuiabá e VG</strong></div>
-          </div>
-          <div>
-            <span className="info-icon"><Package size={18} /></span>
-            <div><small>Combos Promocionais</small><strong>Monte seu Combo e economize</strong></div>
-          </div>
-        </section>
+
 
         {/* Menu / Combos Section */}
         <section className="menu-section" id="cardapio">
@@ -1020,6 +1006,50 @@ export default function Home() {
           onSuccess={handleLoginSuccess}
         />
       )}
+
+      {/* Botão Flutuante Redondo do WhatsApp - Canto Inferior Esquerdo */}
+      <a
+        href="https://wa.me/5565999865093?text=Ol%C3%A1%20HouseFit!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida."
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Fale conosco no WhatsApp"
+        title="Fale conosco no WhatsApp (65) 99986-5093"
+        style={{
+          position: "fixed",
+          bottom: 24,
+          left: 24,
+          width: 58,
+          height: 58,
+          borderRadius: "50%",
+          background: "#25D366",
+          color: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 16px rgba(37, 211, 102, 0.45)",
+          zIndex: 999,
+          cursor: "pointer",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.08)";
+          e.currentTarget.style.boxShadow = "0 6px 20px rgba(37, 211, 102, 0.6)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow = "0 4px 16px rgba(37, 211, 102, 0.45)";
+        }}
+      >
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="#ffffff"
+          style={{ display: "block" }}
+        >
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.41a8.21 8.21 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.66c-.19-.09-1.11-.55-1.28-.61-.17-.07-.3-.1-.42.1-.13.19-.48.61-.59.74-.11.12-.22.14-.41.05-.19-.09-.8-.3-1.53-.95-.57-.51-.95-1.13-1.06-1.33-.11-.19-.01-.3.08-.39.09-.09.19-.22.28-.33.1-.11.13-.19.19-.31.07-.12.03-.24-.02-.33-.05-.1-.42-1.01-.58-1.39-.15-.36-.31-.31-.42-.32h-.36c-.12 0-.33.05-.5.24-.17.19-.66.65-.66 1.58s.68 1.83.77 1.96c.1.12 1.34 2.05 3.25 2.87.45.2.81.31 1.09.4.46.15.88.13 1.21.08.37-.06 1.11-.45 1.27-.89.16-.44.16-.81.11-.89-.04-.08-.16-.13-.35-.22z" />
+        </svg>
+      </a>
     </div>
   );
 }
