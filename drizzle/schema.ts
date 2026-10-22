@@ -63,6 +63,8 @@ export const orders = pgTable("orders", {
   couponCode: varchar("couponCode", { length: 60 }),
   partnerName: varchar("partnerName", { length: 160 }),
   deliveryFee: numeric("deliveryFee", { precision: 12, scale: 2 }).default("0").notNull(),
+  deliveryCity: varchar("deliveryCity", { length: 100 }),
+  deliveryAddress: text("deliveryAddress"),
   total: numeric("total", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
