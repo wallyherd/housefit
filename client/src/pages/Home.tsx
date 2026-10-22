@@ -43,6 +43,7 @@ import {
   fetchDbPartners,
   authenticateDbUser,
   registerDbUser,
+  checkUserPhoneExists,
 } from "@/lib/supabaseService";
 import { PaymentModal } from "@/components/PaymentModal";
 
@@ -107,6 +108,11 @@ export default function Home() {
   const [deliveryCity, setDeliveryCity] = useState<"cuiaba" | "varzea_grande" | null>(null);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [isRedirectingPayment, setIsRedirectingPayment] = useState(false);
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   const deliveryFee = useMemo(() => {
     if (deliveryCity === "cuiaba") return 12;
@@ -252,83 +258,22 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 3000);
   };
 
-  const confirmOrder = async () => {
-    if (!customerName.trim() || !customerPhone.trim() || !deliveryCity || !deliveryAddress.trim() || cart.length === 0 || isRedirectingPayment) return;
-
+  // Redireciona para o checkout da InfinitePay com valor total consolidado
+  const redirectToInfinitePay = async (cName: string, cPhone: string) => {
     setIsRedirectingPayment(true);
-    const orders = loadFromStorage<Order[]>("housefit-orders", initialOrders);
-    const orderItemsNames = cart.map((item) => {
-      if (item.isCombo && item.comboSelections?.length) {
-        const details = item.comboSelections.map((s) => `${s.quantity}x ${s.product.name}`).join(", ");
-        return `${item.quantity > 1 ? `${item.quantity}x ` : ""}${item.product.name} (${details})`;
-      }
-      return `${item.quantity > 1 ? `${item.quantity}x ` : ""}${item.product.name}`;
-    });
-
     const cityName = deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande";
-
-    const newOrder: Order = {
-      id: `#HF-${1050 + orders.length}`,
-      customer: customerName,
-      customerPhone: customerPhone,
-      initials: customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase(),
-      items: cartCount,
-      itemNames: orderItemsNames,
-      subtotal: cartTotal,
-      discountAmount: discountAmount,
-      deliveryFee: deliveryFee,
-      deliveryCity: cityName,
-      deliveryAddress: deliveryAddress.trim(),
-      couponCode: appliedPartner?.coupon,
-      partnerId: appliedPartner?.id,
-      partnerName: appliedPartner?.name,
-      total: finalTotal,
-      status: "Recebido",
-      channel: "Delivery",
-      time: "agora",
-      payment: "InfinitePay",
-    };
-
-    saveToStorage("housefit-orders", [newOrder, ...orders]);
-
-    // Persist order to Supabase database
-    createDbOrder(newOrder);
-
-    // Synchronize customer into housefit-customers & Supabase
-    recordCustomerPurchase(customerName, customerPhone, finalTotal, cart[0]?.product.name || "Combo HouseFit");
-
-    const customers = loadFromStorage("housefit-customers", initialCustomers);
-    const existingIndex = customers.findIndex(
-      (c) => c.name.toLowerCase() === customerName.toLowerCase() || (customerPhone && c.phone === customerPhone)
-    );
-    if (existingIndex >= 0) {
-      customers[existingIndex].orders += 1;
-      customers[existingIndex].spent += finalTotal;
-      customers[existingIndex].lastOrder = "Hoje, agora";
-      if (customerPhone) customers[existingIndex].phone = customerPhone;
-    } else {
-      customers.unshift({
-        id: `c-${Date.now()}`,
-        name: customerName,
-        phone: customerPhone,
-        initials: customerName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase(),
-        orders: 1,
-        spent: finalTotal,
-        lastOrder: "Hoje, agora",
-        favorite: cart[0]?.product.name || "Combo HouseFit",
-      });
-    }
+    const tempOrderId = `HF-${Date.now().toString().slice(-4)}`;
 
     try {
       const resp = await fetch("/api/infinitepay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderNumber: newOrder.id,
+          orderNumber: tempOrderId,
           amount: finalTotal,
-          description: `Pedido ${newOrder.id} - HouseFit (${cityName})`,
-          customerName,
-          customerPhone,
+          description: `Pedido ${tempOrderId} - HouseFit (${cityName})`,
+          customerName: cName,
+          customerPhone: cPhone,
         }),
       });
       const data = await resp.json();
@@ -336,6 +281,7 @@ export default function Home() {
         saveCart([]);
         setCartOpen(false);
         setCheckoutOpen(false);
+        setRegisterModalOpen(false);
         window.location.href = data.url;
         return;
       }
@@ -345,9 +291,79 @@ export default function Home() {
       saveCart([]);
       setCartOpen(false);
       setCheckoutOpen(false);
+      setRegisterModalOpen(false);
       window.location.href = "https://loja.infinitepay.io/lethicia-vieira-pol";
     } finally {
       setIsRedirectingPayment(false);
+    }
+  };
+
+  // Verifica se o telefone já existe no banco de dados
+  const handleCheckUserAndProceed = async () => {
+    if (!customerName.trim() || !customerPhone.trim() || !deliveryCity || cart.length === 0 || isRedirectingPayment) return;
+
+    setIsRedirectingPayment(true);
+
+    try {
+      const { exists, user } = await checkUserPhoneExists(customerPhone);
+
+      if (exists) {
+        // Usuário já cadastrado no banco: já loga se tiver os dados e vai direto ao pagamento
+        if (user && !currentUser) {
+          setCurrentUser(user);
+          saveToStorage("housefit-auth-current", user);
+        }
+        await redirectToInfinitePay(customerName, customerPhone);
+      } else {
+        // Telefone não cadastrado: fecha checkout e abre modal de definição de e-mail e senha
+        setIsRedirectingPayment(false);
+        setCheckoutOpen(false);
+        setRegisterEmail("");
+        setRegisterPassword("");
+        setRegisterError("");
+        setRegisterModalOpen(true);
+      }
+    } catch (err) {
+      console.error("Erro ao verificar telefone:", err);
+      await redirectToInfinitePay(customerName, customerPhone);
+    }
+  };
+
+  // Finaliza cadastro de novo usuário e redireciona ao pagamento
+  const handleCompleteRegisterAndPay = async () => {
+    if (!registerEmail.trim() || !registerPassword.trim() || isSubmittingRegister || isRedirectingPayment) return;
+
+    if (!registerEmail.includes("@") || !registerEmail.includes(".")) {
+      setRegisterError("Por favor, informe um e-mail válido.");
+      return;
+    }
+
+    if (registerPassword.length < 4) {
+      setRegisterError("A senha deve ter pelo menos 4 caracteres.");
+      return;
+    }
+
+    setIsSubmittingRegister(true);
+    setRegisterError("");
+
+    try {
+      const newUser = await registerDbUser({
+        name: customerName,
+        email: registerEmail.trim(),
+        phone: customerPhone,
+        password: registerPassword,
+      });
+
+      if (newUser) {
+        setCurrentUser(newUser);
+        saveToStorage("housefit-auth-current", newUser);
+      }
+
+      await redirectToInfinitePay(customerName, customerPhone);
+    } catch (err: any) {
+      setRegisterError(err.message || "Erro ao criar conta. Tente novamente.");
+    } finally {
+      setIsSubmittingRegister(false);
     }
   };
 
@@ -793,16 +809,6 @@ export default function Home() {
               />
             </label>
 
-            {/* Endereço de entrega obrigatório */}
-            <label style={{ marginTop: 14 }}>
-              Endereço completo de entrega em {deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande"} <span style={{ color: "#e11d48" }}>*</span>
-              <input
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder="Rua, número, bairro e complemento"
-              />
-            </label>
-
             {appliedPartner && (
               <div style={{ margin: "14px 0", padding: "10px 12px", background: "#e5efb8", borderRadius: 8, fontSize: 11, color: "#364811", fontWeight: 800 }}>
                 ✓ Desconto de {appliedPartner.discountPercent}% aplicado com cupom de {appliedPartner.name}
@@ -825,10 +831,9 @@ export default function Home() {
                 !customerName.trim() ||
                 !customerPhone.trim() ||
                 !deliveryCity ||
-                !deliveryAddress.trim() ||
                 isRedirectingPayment
               }
-              onClick={confirmOrder}
+              onClick={handleCheckUserAndProceed}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -843,9 +848,86 @@ export default function Home() {
               }}
             >
               {isRedirectingPayment ? (
-                "Abrindo Checkout Seguro InfinitePay..."
+                "Verificando cadastro..."
               ) : (
                 <>Pagar com InfinitePay (Pix ou Cartão) <ArrowRight size={17} /></>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Criar Conta HouseFit (Novo Usuário) */}
+      {registerModalOpen && (
+        <div className="modal-backdrop" onClick={() => setRegisterModalOpen(false)}>
+          <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <button className="modal-close" onClick={() => setRegisterModalOpen(false)}><X size={18} /></button>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#e8f5e9", color: "#198038", borderRadius: 20, fontSize: 11, fontWeight: 800, marginBottom: 8 }}>
+              🎉 Quase lá!
+            </div>
+            <h3 style={{ margin: "4px 0 6px" }}>Crie sua conta HouseFit</h3>
+            <p className="modal-description" style={{ margin: "0 0 16px" }}>
+              Identificamos que você é novo por aqui! Seus dados de contato já foram preenchidos. Complete com e-mail e senha para finalizar seu pedido:
+            </p>
+
+            <label>
+              Seu nome
+              <input value={customerName} disabled style={{ background: "#f8f9fa", cursor: "not-allowed" }} />
+            </label>
+
+            <label style={{ marginTop: 12 }}>
+              WhatsApp
+              <input value={customerPhone} disabled style={{ background: "#f8f9fa", cursor: "not-allowed" }} />
+            </label>
+
+            <label style={{ marginTop: 12 }}>
+              E-mail <span style={{ color: "#e11d48" }}>*</span>
+              <input
+                type="email"
+                autoFocus
+                value={registerEmail}
+                onChange={(e) => { setRegisterEmail(e.target.value); setRegisterError(""); }}
+                placeholder="seu.email@exemplo.com"
+              />
+            </label>
+
+            <label style={{ marginTop: 12 }}>
+              Senha de acesso <span style={{ color: "#e11d48" }}>*</span>
+              <input
+                type="password"
+                value={registerPassword}
+                onChange={(e) => { setRegisterPassword(e.target.value); setRegisterError(""); }}
+                placeholder="Mínimo 4 caracteres"
+              />
+            </label>
+
+            {registerError && (
+              <div style={{ marginTop: 12, padding: "8px 12px", background: "#ffebee", borderRadius: 8, color: "#c62828", fontSize: 12, fontWeight: 700 }}>
+                {registerError}
+              </div>
+            )}
+
+            <button
+              className="primary-button full"
+              disabled={!registerEmail.trim() || !registerPassword.trim() || isSubmittingRegister || isRedirectingPayment}
+              onClick={handleCompleteRegisterAndPay}
+              style={{
+                marginTop: 18,
+                padding: "14px",
+                fontSize: 15,
+                fontWeight: 800,
+                background: isSubmittingRegister || isRedirectingPayment ? "#8a9c94" : "#198038",
+                borderColor: isSubmittingRegister || isRedirectingPayment ? "#8a9c94" : "#198038",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              {isSubmittingRegister || isRedirectingPayment ? (
+                "Criando conta e gerando pagamento..."
+              ) : (
+                <>Ir para o pagamento <ArrowRight size={17} /></>
               )}
             </button>
           </div>

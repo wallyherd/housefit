@@ -388,3 +388,40 @@ export async function registerDbUser(user: { name: string; email: string; phone:
     return null;
   }
 }
+
+export async function checkUserPhoneExists(phone: string): Promise<{ exists: boolean; user?: DbUser }> {
+  try {
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (!cleanPhone) return { exists: false };
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*");
+
+    if (error || !data) return { exists: false };
+
+    const found = data.find((u) => {
+      const uPhone = (u.phone || "").replace(/\D/g, "");
+      return uPhone && (uPhone === cleanPhone || uPhone.endsWith(cleanPhone) || cleanPhone.endsWith(uPhone));
+    });
+
+    if (found) {
+      return {
+        exists: true,
+        user: {
+          id: String(found.id),
+          name: found.name || "",
+          email: found.email || "",
+          phone: found.phone || "",
+          role: (found.role as "admin" | "user") || "user",
+        },
+      };
+    }
+
+    return { exists: false };
+  } catch (err) {
+    console.error("[Supabase] Falha ao verificar telefone:", err);
+    return { exists: false };
+  }
+}
+
