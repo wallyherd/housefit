@@ -104,8 +104,9 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [comboModalProduct, setComboModalProduct] = useState<Product | null>(null);
   const [pendingPaymentOrder, setPendingPaymentOrder] = useState<Order | null>(null);
-  const [deliveryCity, setDeliveryCity] = useState<"cuiaba" | "varzea_grande" | "retirada" | null>(null);
+  const [deliveryCity, setDeliveryCity] = useState<"cuiaba" | "varzea_grande" | null>(null);
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [isRedirectingPayment, setIsRedirectingPayment] = useState(false);
 
   const deliveryFee = useMemo(() => {
     if (deliveryCity === "cuiaba") return 12;
@@ -251,8 +252,10 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 3000);
   };
 
-  const confirmOrder = () => {
-    if (!customerName.trim() || !customerPhone.trim() || !deliveryCity || cart.length === 0) return;
+  const confirmOrder = async () => {
+    if (!customerName.trim() || !customerPhone.trim() || !deliveryCity || !deliveryAddress.trim() || cart.length === 0 || isRedirectingPayment) return;
+
+    setIsRedirectingPayment(true);
     const orders = loadFromStorage<Order[]>("housefit-orders", initialOrders);
     const orderItemsNames = cart.map((item) => {
       if (item.isCombo && item.comboSelections?.length) {
@@ -262,8 +265,7 @@ export default function Home() {
       return `${item.quantity > 1 ? `${item.quantity}x ` : ""}${item.product.name}`;
     });
 
-    const cityName = deliveryCity === "cuiaba" ? "Cuiabá" : deliveryCity === "varzea_grande" ? "Várzea Grande" : "Retirada";
-    const channelType = deliveryCity === "retirada" ? "Retirada" : "Delivery";
+    const cityName = deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande";
 
     const newOrder: Order = {
       id: `#HF-${1050 + orders.length}`,
@@ -276,15 +278,15 @@ export default function Home() {
       discountAmount: discountAmount,
       deliveryFee: deliveryFee,
       deliveryCity: cityName,
-      deliveryAddress: deliveryAddress.trim() || undefined,
+      deliveryAddress: deliveryAddress.trim(),
       couponCode: appliedPartner?.coupon,
       partnerId: appliedPartner?.id,
       partnerName: appliedPartner?.name,
       total: finalTotal,
       status: "Recebido",
-      channel: channelType,
+      channel: "Delivery",
       time: "agora",
-      payment: "Pix",
+      payment: "InfinitePay",
     };
 
     saveToStorage("housefit-orders", [newOrder, ...orders]);
@@ -316,9 +318,37 @@ export default function Home() {
         favorite: cart[0]?.product.name || "Combo HouseFit",
       });
     }
-    // Abre modal de pagamento InfinitePay
-    setPendingPaymentOrder(newOrder);
-    setCheckoutOpen(false);
+
+    try {
+      const resp = await fetch("/api/infinitepay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderNumber: newOrder.id,
+          amount: finalTotal,
+          description: `Pedido ${newOrder.id} - HouseFit (${cityName})`,
+          customerName,
+          customerPhone,
+        }),
+      });
+      const data = await resp.json();
+      if (data?.success && data?.url) {
+        saveCart([]);
+        setCartOpen(false);
+        setCheckoutOpen(false);
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error(data?.message || "Não foi possível gerar o link");
+    } catch (err) {
+      console.warn("Redirecionando para a loja da InfinitePay...", err);
+      saveCart([]);
+      setCartOpen(false);
+      setCheckoutOpen(false);
+      window.location.href = "https://loja.infinitepay.io/lethicia-vieira-pol";
+    } finally {
+      setIsRedirectingPayment(false);
+    }
   };
 
   const handlePaymentSuccess = (paymentMethod: string) => {
@@ -677,25 +707,6 @@ export default function Home() {
                         </span>
                       </button>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryCity("retirada")}
-                      style={{
-                        width: "100%",
-                        marginTop: 6,
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        border: `1px solid ${deliveryCity === "retirada" ? "#198038" : "var(--line)"}`,
-                        background: deliveryCity === "retirada" ? "#f2f9f4" : "transparent",
-                        color: deliveryCity === "retirada" ? "#198038" : "var(--ink-soft)",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Prefiro retirar no local (Sem taxa de entrega)
-                    </button>
                   </div>
 
                   <div>
@@ -711,7 +722,7 @@ export default function Home() {
                   <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--ink-soft)" }}>
                     <span>
                       Taxa de entrega
-                      {deliveryCity === "cuiaba" ? " (Cuiabá)" : deliveryCity === "varzea_grande" ? " (Várzea Grande)" : deliveryCity === "retirada" ? " (Retirada)" : ""}
+                      {deliveryCity === "cuiaba" ? " (Cuiabá)" : deliveryCity === "varzea_grande" ? " (Várzea Grande)" : ""}
                     </span>
                     {deliveryCity ? (
                       <strong style={{ color: "var(--ink)" }}>{deliveryFee > 0 ? formatBRL(deliveryFee) : "Grátis"}</strong>
@@ -782,17 +793,15 @@ export default function Home() {
               />
             </label>
 
-            {/* Endereço de entrega se for delivery */}
-            {deliveryCity !== "retirada" && (
-              <label style={{ marginTop: 14 }}>
-                Endereço de entrega em {deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande"}
-                <input
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="Rua, número, bairro e complemento"
-                />
-              </label>
-            )}
+            {/* Endereço de entrega obrigatório */}
+            <label style={{ marginTop: 14 }}>
+              Endereço completo de entrega em {deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande"} <span style={{ color: "#e11d48" }}>*</span>
+              <input
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+                placeholder="Rua, número, bairro e complemento"
+              />
+            </label>
 
             {appliedPartner && (
               <div style={{ margin: "14px 0", padding: "10px 12px", background: "#e5efb8", borderRadius: 8, fontSize: 11, color: "#364811", fontWeight: 800 }}>
@@ -804,42 +813,43 @@ export default function Home() {
               <div>
                 <span>Total a pagar</span>
                 <small style={{ display: "block", fontSize: 11, color: "#777", fontWeight: 500 }}>
-                  {cartCount} combo(s) + taxa de entrega ({deliveryCity === "cuiaba" ? "Cuiabá" : deliveryCity === "varzea_grande" ? "Várzea Grande" : "Retirada"})
+                  {cartCount} combo(s) + taxa de entrega ({deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande"})
                 </small>
               </div>
               <strong>{formatBRL(finalTotal)}</strong>
             </div>
+
             <button
               className="primary-button full"
               disabled={
                 !customerName.trim() ||
                 !customerPhone.trim() ||
-                (deliveryCity !== "retirada" && !deliveryAddress.trim())
+                !deliveryCity ||
+                !deliveryAddress.trim() ||
+                isRedirectingPayment
               }
               onClick={confirmOrder}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                background: isRedirectingPayment ? "#8a9c94" : "#198038",
+                borderColor: isRedirectingPayment ? "#8a9c94" : "#198038",
+                cursor: isRedirectingPayment ? "wait" : "pointer",
+                padding: "14px",
+                fontSize: 15,
+                fontWeight: 800,
+              }}
             >
-              Ir para pagamento InfinitePay <ArrowRight size={17} />
+              {isRedirectingPayment ? (
+                "Abrindo Checkout Seguro InfinitePay..."
+              ) : (
+                <>Pagar com InfinitePay (Pix ou Cartão) <ArrowRight size={17} /></>
+              )}
             </button>
           </div>
         </div>
-      )}
-
-      {/* InfinitePay Payment Modal */}
-      {pendingPaymentOrder && (
-        <PaymentModal
-          orderNumber={pendingPaymentOrder.id.replace("#", "")}
-          total={pendingPaymentOrder.total}
-          customerName={pendingPaymentOrder.customer}
-          customerPhone={pendingPaymentOrder.customerPhone || ""}
-          itemsSummary={pendingPaymentOrder.itemNames.join(", ")}
-          onClose={() => {
-            setPendingPaymentOrder(null);
-            setNotice(`Pedido ${pendingPaymentOrder.id} registrado!`);
-            window.setTimeout(() => setNotice(""), 4000);
-          }}
-          onSuccess={handlePaymentSuccess}
-        />
       )}
 
       {/* Interactive Combo Customizer Modal */}
