@@ -80,7 +80,7 @@ const product = (
 export const initialProducts: Product[] = [
   product("combo-20", "Combo 20 marmitas", "Combos", "Escolha seus sabores favoritos e garanta o mês todo no freezer com máxima economia.", 449, 12, 290, mealImage, "Mais economia"),
   product("combo-10", "Combo 10 marmitas", "Combos", "Refeições práticas para deixar a semana mais leve e saborosa.", 229, 18, 150, bowlImage, "Favorito"),
-  product("combo-5", "Combo 05 marmitas", "Combos", "O jeito gostoso de começar uma rotina saudável e prática.", 119, 23, 78, proteinImage, "Para experimentar"),
+  product("combo-5", "Combo 05 marmitas", "Combos", "O jeito gostoso de começar uma rotina saudável e prática.", 119, 23, 78, "/combo-5-marmitas.jpg", "Para experimentar"),
   product("combo-caldos", "Combo 10 caldos", "Combos", "Dias aconchegantes com caldo congelado e pronto em minutos.", 159, 7, 98, soupImage, "Favorito"),
   product("combo-caldos-20", "Combo 20 caldos", "Combos", "Variedade de caldos para aquecer suas noites com o melhor custo-benefício.", 299, 10, 185, soupImage, "Mais economia"),
   product("frango-pan-vermelho", "Panqueca de frango ao molho vermelho", "Frango", "2 discos, 100g de frango desfiado, molho de tomate e muçarela.", 26.5, 79, 11.2, mealImage),
