@@ -1119,12 +1119,28 @@ function ComboCustomizerModal({
   }, [allProducts, isSoupCombo]);
 
   const filteredMarmitas = useMemo(() => {
-    return availableMarmitas.filter((p) => {
+    const list = availableMarmitas.filter((p) => {
       const matchesFilter =
         modalFilter === "Todas" || p.category === modalFilter;
       const normalized = `${p.name} ${p.description}`.toLowerCase();
       const matchesSearch = normalized.includes(modalSearch.toLowerCase());
       return matchesFilter && matchesSearch;
+    });
+
+    // As sopas/caldos devem ser as últimas marmitas da lista
+    return list.sort((a, b) => {
+      const isSoupA =
+        a.category === "Caldos" ||
+        a.name.toLowerCase().includes("caldo") ||
+        a.name.toLowerCase().includes("sopa");
+      const isSoupB =
+        b.category === "Caldos" ||
+        b.name.toLowerCase().includes("caldo") ||
+        b.name.toLowerCase().includes("sopa");
+
+      if (isSoupA && !isSoupB) return 1;
+      if (!isSoupA && isSoupB) return -1;
+      return 0;
     });
   }, [availableMarmitas, modalFilter, modalSearch]);
 
