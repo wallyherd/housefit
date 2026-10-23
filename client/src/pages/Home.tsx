@@ -153,11 +153,24 @@ export default function Home() {
 
   // Only display Combos on the public home page!
   const visibleCombos = useMemo(() => {
-    return products.filter((product) => {
+    const list = products.filter((product) => {
       if (product.category !== "Combos") return false;
       const normalized = `${product.name} ${product.description}`.toLowerCase();
       return normalized.includes(search.toLowerCase()) && product.available;
     });
+
+    const getOrderPriority = (p: Product) => {
+      const name = p.name.toLowerCase();
+      const id = String(p.id).toLowerCase();
+      if (name.includes("05 marmita") || name.includes("5 marmita") || id === "combo-5" || id === "3") return 1;
+      if (name.includes("10 marmita") || id === "combo-10" || id === "2") return 2;
+      if (name.includes("20 marmita") || id === "combo-20" || id === "1") return 3;
+      if (name.includes("10 caldo") || id === "combo-caldos" || id === "4") return 4;
+      if (name.includes("20 caldo") || id === "combo-caldos-20" || id === "5") return 5;
+      return 99;
+    };
+
+    return list.sort((a, b) => getOrderPriority(a) - getOrderPriority(b));
   }, [products, search]);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
@@ -1014,31 +1027,7 @@ export default function Home() {
         rel="noopener noreferrer"
         aria-label="Fale conosco no WhatsApp"
         title="Fale conosco no WhatsApp (65) 99986-5093"
-        style={{
-          position: "fixed",
-          bottom: 24,
-          left: 24,
-          width: 58,
-          height: 58,
-          borderRadius: "50%",
-          background: "#25D366",
-          color: "#ffffff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 16px rgba(37, 211, 102, 0.45)",
-          zIndex: 999,
-          cursor: "pointer",
-          transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.08)";
-          e.currentTarget.style.boxShadow = "0 6px 20px rgba(37, 211, 102, 0.6)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.boxShadow = "0 4px 16px rgba(37, 211, 102, 0.45)";
-        }}
+        className="floating-whatsapp-btn"
       >
         <svg
           width="32"
@@ -1083,7 +1072,9 @@ function ComboCard({
         </div>
         <p>{item.description}</p>
         <div className="product-footer">
-          <small>{targetCount} marmitas à sua escolha</small>
+          <small>
+            {targetCount} {item.id.includes("caldo") || item.name.toLowerCase().includes("caldo") ? "caldos" : "marmitas"} à sua escolha
+          </small>
           <button className="add-button" onClick={onOpenCombo}>
             <Plus size={15} /> {inCartQty > 0 ? "Personalizar outro" : "Montar combo"}
           </button>
