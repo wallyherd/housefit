@@ -246,8 +246,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .marmita-option-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
-.marmita-option-body h4 { margin: 0; font-size: 12px; line-height: 1.3; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.marmita-option-body p { margin: 3px 0 0; font-size: 10px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.marmita-option-body h4 { margin: 0; font-size: 13px; line-height: 1.35; font-weight: 800; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.marmita-option-body p { margin: 2px 0 0; font-size: 11px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .marmita-option-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
 .marmita-stock-tag { font-size: 10px; font-weight: 800; color: #527568; display: inline-flex; align-items: center; gap: 4px; }
 .marmita-stock-tag.low { color: var(--coral); }
@@ -661,6 +661,7 @@ a { color: inherit; text-decoration: none; }
     padding: 0 !important;
     align-items: stretch !important;
     justify-content: stretch !important;
+    overflow: hidden !important;
   }
   .combo-modal {
     border-radius: 0 !important;
@@ -669,62 +670,117 @@ a { color: inherit; text-decoration: none; }
     height: 100dvh !important;
     max-height: 100dvh !important;
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+    overflow: hidden !important;
   }
   .combo-modal-header {
-    padding: 14px 16px 10px !important;
-    flex-shrink: 0;
+    padding: 12px 16px 8px !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
   }
   .combo-modal-header h3 {
-    font-size: 20px;
+    font-size: 19px !important;
+    margin: 2px 0 0 !important;
+  }
+  .combo-modal-header p {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    margin: 2px 0 0 !important;
   }
   .combo-progress-box {
-    padding: 10px 16px !important;
-    flex-shrink: 0;
+    padding: 8px 16px !important;
+    flex-shrink: 0 !important;
   }
   .combo-progress-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
   }
   .combo-nav-bar {
-    padding: 8px 16px !important;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    flex-shrink: 0;
+    padding: 6px 16px 8px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
   }
   .combo-search {
-    width: 100%;
+    width: 100% !important;
+    height: 32px !important;
   }
   .combo-search input {
-    width: 100%;
+    width: 100% !important;
   }
   .combo-marmitas-list {
     grid-template-columns: 1fr !important;
-    padding: 10px 14px 24px !important;
+    padding: 10px 14px 130px !important;
     gap: 10px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    flex: 1;
-    overflow-y: auto;
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
   .marmita-option-card {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    padding: 10px !important;
+    padding: 10px 12px !important;
     gap: 10px !important;
     margin: 0 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03) !important;
+  }
+  .marmita-img-thumb {
+    width: 62px !important;
+    height: 62px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+  }
+  .marmita-img-thumb img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  .marmita-option-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+  }
+  .marmita-stock-tag {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #527568 !important;
+    flex-shrink: 1 !important;
+    white-space: nowrap !important;
+  }
+  .marmita-stepper {
+    flex-shrink: 0 !important;
   }
   .combo-selection-pills {
     display: none !important;
   }
   .combo-modal-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
     padding: 12px 16px !important;
-    flex-shrink: 0;
-    box-shadow: 0 -4px 14px rgba(0,0,0,0.06);
-    background: #ffffff;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.1) !important;
+    background: #ffffff !important;
+    border-top: 1px solid var(--line) !important;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important;
+    z-index: 25 !important;
+    box-sizing: border-box !important;
   }
   .combo-modal-footer .primary-button {
     width: 100% !important;
@@ -780,8 +836,6 @@ a { color: inherit; text-decoration: none; }
   .hero-actions .primary-button, .hero-actions .secondary-button { width: 100%; }
   .hero-visual { min-height: 250px; }
   .product-image-wrap { height: 180px; }
-  .marmita-option-card { padding: 8px; gap: 8px; }
-  .marmita-option-card img { width: 56px; height: 56px; }
   .checkout-modal { padding: 20px 14px; border-radius: 16px; }
   .checkout-modal label { margin: 16px 0; }
   .checkout-modal input { height: 42px; font-size: 12px; }
