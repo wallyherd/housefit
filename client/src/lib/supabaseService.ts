@@ -425,3 +425,34 @@ export async function checkUserPhoneExists(phone: string): Promise<{ exists: boo
   }
 }
 
+export async function updateDbUser(
+  userId: string,
+  updates: { name?: string; email?: string; phone?: string; password?: string }
+): Promise<boolean> {
+  try {
+    const payload: any = {};
+    if (updates.name) payload.name = updates.name.trim();
+    if (updates.email) payload.email = updates.email.toLowerCase().trim();
+    if (updates.phone) payload.phone = updates.phone.trim();
+    if (updates.password) payload.password = updates.password;
+
+    let error: any = null;
+    if (userId && !userId.startsWith("u-") && !isNaN(Number(userId))) {
+      const res = await supabase.from("users").update(payload).eq("id", Number(userId));
+      error = res.error;
+    } else if (updates.email) {
+      const res = await supabase.from("users").update(payload).eq("email", updates.email.toLowerCase().trim());
+      error = res.error;
+    }
+
+    if (error) {
+      console.warn("[Supabase] Aviso ao atualizar usuário:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[Supabase] Falha no updateDbUser:", err);
+    return false;
+  }
+}
+

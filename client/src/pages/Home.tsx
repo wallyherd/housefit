@@ -24,6 +24,10 @@ import {
   Eye,
   ZoomIn,
   RotateCcw,
+  Truck,
+  Flame,
+  CheckCircle2,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   formatBRL,
@@ -36,17 +40,20 @@ import {
   saveToStorage,
   PRODUCTS_STORAGE_KEY,
   type Order,
+  type OrderStatus,
   type Partner,
   type Product,
 } from "@/lib/demoData";
 import {
   fetchDbProducts,
+  fetchDbOrders,
   createDbOrder,
   recordCustomerPurchase,
   fetchDbPartners,
   authenticateDbUser,
   registerDbUser,
   checkUserPhoneExists,
+  updateDbUser,
 } from "@/lib/supabaseService";
 import { PaymentModal } from "@/components/PaymentModal";
 
@@ -148,6 +155,48 @@ export default function Home() {
     loadFromStorage<AuthUser | null>("housefit-auth-current", null)
   );
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // User account modals
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+  const [trackingTargetOrder, setTrackingTargetOrder] = useState<Order | null>(null);
+
+  // Orders State & Real-time sync
+  const [orders, setOrders] = useState<Order[]>(() =>
+    loadFromStorage<Order[]>("housefit-orders", initialOrders)
+  );
+
+  useEffect(() => {
+    const syncOrders = () => {
+      const stored = loadFromStorage<Order[]>("housefit-orders", initialOrders);
+      setOrders(stored);
+    };
+    window.addEventListener("storage", syncOrders);
+    window.addEventListener("housefit-orders-updated", syncOrders);
+
+    fetchDbOrders().then((data) => {
+      if (data && data.length > 0) {
+        setOrders(data);
+        saveToStorage("housefit-orders", data);
+      }
+    });
+
+    const timer = setInterval(() => {
+      fetchDbOrders().then((data) => {
+        if (data && data.length > 0) {
+          setOrders(data);
+          saveToStorage("housefit-orders", data);
+        }
+      });
+    }, 8000);
+
+    return () => {
+      window.removeEventListener("storage", syncOrders);
+      window.removeEventListener("housefit-orders-updated", syncOrders);
+      clearInterval(timer);
+    };
+  }, []);
 
   const saveCart = (nextCart: CartItem[]) => {
     setCart(nextCart);
@@ -439,15 +488,121 @@ export default function Home() {
                       right: 0,
                       top: "100%",
                       marginTop: 8,
-                      width: 190,
+                      width: 210,
                       background: "white",
-                      borderRadius: 12,
-                      boxShadow: "0 10px 30px rgba(0,0,0,.15)",
+                      borderRadius: 14,
+                      boxShadow: "0 12px 36px rgba(0,0,0,.18)",
                       border: "1px solid var(--line)",
-                      padding: 6,
-                      zIndex: 30,
+                      padding: "6px",
+                      zIndex: 40,
                     }}
                   >
+                    <div
+                      style={{
+                        padding: "8px 12px 10px",
+                        borderBottom: "1px solid var(--line)",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          color: "var(--ink)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {currentUser.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          marginTop: 1,
+                        }}
+                      >
+                        {currentUser.email}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setProfileModalOpen(true);
+                        setUserMenuOpen(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "var(--ink)",
+                        background: "transparent",
+                        cursor: "pointer",
+                        border: "none",
+                        textAlign: "left",
+                      }}
+                    >
+                      <User size={14} style={{ color: "var(--hunter)" }} /> Perfil
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setHistoryModalOpen(true);
+                        setUserMenuOpen(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "var(--ink)",
+                        background: "transparent",
+                        cursor: "pointer",
+                        border: "none",
+                        textAlign: "left",
+                      }}
+                    >
+                      <Clock3 size={14} style={{ color: "var(--hunter)" }} /> Histórico
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setTrackingTargetOrder(null);
+                        setTrackingModalOpen(true);
+                        setUserMenuOpen(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "var(--ink)",
+                        background: "transparent",
+                        cursor: "pointer",
+                        border: "none",
+                        textAlign: "left",
+                      }}
+                    >
+                      <Truck size={14} style={{ color: "var(--hunter)" }} /> Acompanhar
+                    </button>
+
                     {currentUser.role === "admin" && (
                       <Link
                         href="/admin"
@@ -455,17 +610,21 @@ export default function Home() {
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
-                          padding: "10px 12px",
+                          padding: "9px 12px",
                           borderRadius: 8,
                           fontSize: 12,
                           fontWeight: 800,
                           color: "var(--ink)",
+                          textDecoration: "none",
                         }}
                         onClick={() => setUserMenuOpen(false)}
                       >
                         <Shield size={14} /> Painel Admin
                       </Link>
                     )}
+
+                    <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+
                     <button
                       onClick={handleLogout}
                       style={{
@@ -473,13 +632,15 @@ export default function Home() {
                         alignItems: "center",
                         gap: 8,
                         width: "100%",
-                        padding: "10px 12px",
+                        padding: "9px 12px",
                         borderRadius: 8,
                         fontSize: 12,
                         fontWeight: 800,
                         color: "var(--coral)",
                         background: "transparent",
                         cursor: "pointer",
+                        border: "none",
+                        textAlign: "left",
                       }}
                     >
                       <LogOut size={14} /> Sair da conta
@@ -1045,8 +1206,51 @@ export default function Home() {
         />
       )}
 
+      {/* Profile Modal */}
+      {profileModalOpen && currentUser && (
+        <ProfileModal
+          user={currentUser}
+          onClose={() => setProfileModalOpen(false)}
+          onUpdate={(updatedUser) => {
+            setCurrentUser(updatedUser);
+          }}
+        />
+      )}
+
+      {/* Order History Modal */}
+      {historyModalOpen && currentUser && (
+        <OrderHistoryModal
+          user={currentUser}
+          orders={orders}
+          onClose={() => setHistoryModalOpen(false)}
+          onTrackOrder={(selectedOrder) => {
+            setHistoryModalOpen(false);
+            setTrackingTargetOrder(selectedOrder);
+            setTrackingModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Order Tracking Modal */}
+      {trackingModalOpen && currentUser && (
+        <OrderTrackingModal
+          user={currentUser}
+          orders={orders}
+          targetOrder={trackingTargetOrder}
+          onClose={() => setTrackingModalOpen(false)}
+        />
+      )}
+
       {/* Botão Flutuante Redondo do WhatsApp - Canto Inferior Esquerdo (escondido se modal ou carrinho aberto) */}
-      {!comboModalProduct && !cartOpen && !checkoutOpen && !registerModalOpen && !postPaymentModalOpen && !authModalOpen && (
+      {!comboModalProduct &&
+        !cartOpen &&
+        !checkoutOpen &&
+        !registerModalOpen &&
+        !postPaymentModalOpen &&
+        !authModalOpen &&
+        !profileModalOpen &&
+        !historyModalOpen &&
+        !trackingModalOpen && (
         <a
           href="https://wa.me/5565999865093?text=Ol%C3%A1%20HouseFit!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida."
           target="_blank"
@@ -1777,3 +1981,560 @@ function AuthModal({
     </div>
   );
 }
+
+// ----------------------------------------------------------------------------
+// MODAL DE PERFIL DO USUÁRIO
+// ----------------------------------------------------------------------------
+function ProfileModal({
+  user,
+  onClose,
+  onUpdate,
+}: {
+  user: AuthUser;
+  onClose: () => void;
+  onUpdate: (user: AuthUser) => void;
+}) {
+  const [name, setName] = useState(user.name);
+  const [phone, setPhone] = useState(user.phone || "");
+  const [email, setEmail] = useState(user.email);
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) {
+      alert("Por favor preencha nome e e-mail.");
+      return;
+    }
+
+    setLoading(true);
+
+    const updatedUser: AuthUser = {
+      ...user,
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim().toLowerCase(),
+    };
+    if (password.trim()) {
+      updatedUser.password = password.trim();
+    }
+
+    saveToStorage("housefit-auth-current", updatedUser);
+
+    const users = loadFromStorage<AuthUser[]>("housefit-auth-users", initialAuthUsers);
+    const updatedUsers = users.map((u) => (u.id === user.id ? updatedUser : u));
+    saveToStorage("housefit-auth-users", updatedUsers);
+
+    await updateDbUser(user.id, {
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim() || undefined,
+    });
+
+    onUpdate(updatedUser);
+    setLoading(false);
+    setSuccessNotice(true);
+    setTimeout(() => {
+      setSuccessNotice(false);
+      onClose();
+    }, 1200);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Minha Conta</p>
+        <h3 style={{ fontSize: 22 }}>Perfil do Cliente</h3>
+        <p className="modal-description">
+          Gerencie e atualize seus dados de cadastro na HouseFit.
+        </p>
+
+        {successNotice && (
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#e5efb8", color: "#256c42", fontWeight: 800, fontSize: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <Check size={16} /> Dados atualizados com sucesso!
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="modal-form-grid" style={{ marginTop: 12 }}>
+          <div className="modal-form-group">
+            <label>Nome completo *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Seu nome completo"
+              required
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>Telefone / WhatsApp</label>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="(65) 99999-9999"
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>E-mail *</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seuemail@exemplo.com"
+              required
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>Nova senha (opcional)</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Deixe em branco para manter a atual"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="primary-button full"
+            disabled={loading}
+            style={{ marginTop: 14, background: "var(--hunter)", color: "#fff" }}
+          >
+            {loading ? "Salvando alterações..." : "Salvar alterações"} <Check size={16} />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// MODAL DE HISTÓRICO DE PEDIDOS
+// ----------------------------------------------------------------------------
+function OrderHistoryModal({
+  user,
+  orders,
+  onClose,
+  onTrackOrder,
+}: {
+  user: AuthUser;
+  orders: Order[];
+  onClose: () => void;
+  onTrackOrder: (order: Order) => void;
+}) {
+  const userOrders = useMemo(() => {
+    const cleanUserPhone = (user.phone || "").replace(/\D/g, "");
+    const cleanUserName = user.name.trim().toLowerCase();
+
+    return orders.filter((o) => {
+      const cleanOrderPhone = (o.customerPhone || "").replace(/\D/g, "");
+      const phoneMatch =
+        cleanUserPhone &&
+        cleanOrderPhone &&
+        (cleanUserPhone === cleanOrderPhone ||
+          cleanUserPhone.endsWith(cleanOrderPhone) ||
+          cleanOrderPhone.endsWith(cleanUserPhone));
+      const nameMatch = (o.customer || "").trim().toLowerCase() === cleanUserName;
+      return phoneMatch || nameMatch;
+    });
+  }, [user, orders]);
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case "Pedido Recebido":
+      case "Recebido":
+        return { background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" };
+      case "Em Preparo":
+      case "Preparando":
+        return { background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a" };
+      case "Aguardando":
+      case "Pronto":
+        return { background: "#f3e8ff", color: "#7e22ce", border: "1px solid #e9d5ff" };
+      case "Na Entrega":
+      case "Em entrega":
+        return { background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0" };
+      case "Concluído":
+        return { background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0" };
+      default:
+        return { background: "#f3f4f6", color: "#374151" };
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Histórico de Pedidos</p>
+        <h3 style={{ fontSize: 22 }}>Seus Pedidos HouseFit</h3>
+        <p className="modal-description">
+          Acompanhe o histórico de todas as refeições e compras já realizadas.
+        </p>
+
+        {userOrders.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--muted)" }}>
+              <Clock3 size={28} />
+            </div>
+            <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>Nenhum pedido encontrado</h4>
+            <p style={{ fontSize: 13, color: "var(--muted)", maxWidth: 320, margin: "0 auto 20px" }}>
+              Assim que sua compra for confirmada, ela aparecerá aqui para você consultar e acompanhar.
+            </p>
+            <button
+              className="primary-button compact"
+              onClick={onClose}
+              style={{ background: "var(--hunter)", color: "#fff", margin: "0 auto" }}
+            >
+              Ver opções no cardápio
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+            {userOrders.map((o) => {
+              const badgeStyle = getStatusBadgeStyle(o.status);
+              const isActive = o.status !== "Concluído";
+
+              return (
+                <div
+                  key={o.id}
+                  style={{
+                    background: "#fbfbfb",
+                    border: "1px solid var(--line)",
+                    borderRadius: 12,
+                    padding: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <strong style={{ fontSize: 15, color: "var(--ink)" }}>{o.id}</strong>
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>• {o.time}</span>
+                    </div>
+                    <span
+                      style={{
+                        padding: "3px 10px",
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        ...badgeStyle,
+                      }}
+                    >
+                      {o.status}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600, lineHeight: 1.4 }}>
+                    {o.itemNames && o.itemNames.length > 0 ? o.itemNames.join(" • ") : `${o.items} itens`}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 8, borderTop: "1px dashed var(--line)", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Total: <strong style={{ color: "var(--ink)", fontSize: 14 }}>{formatBRL(o.total)}</strong> ({o.payment} • {o.channel})
+                    </div>
+                    {isActive && (
+                      <button
+                        onClick={() => onTrackOrder(o)}
+                        style={{
+                          background: "var(--hunter)",
+                          color: "#fff",
+                          border: "none",
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        Acompanhar pedido <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// MODAL DE ACOMPANHAMENTO DINÂMICO DE PEDIDO (STEPPER)
+// ----------------------------------------------------------------------------
+function OrderTrackingModal({
+  user,
+  orders,
+  targetOrder,
+  onClose,
+}: {
+  user: AuthUser;
+  orders: Order[];
+  targetOrder?: Order | null;
+  onClose: () => void;
+}) {
+  const activeOrder = useMemo(() => {
+    if (targetOrder) return targetOrder;
+
+    const cleanUserPhone = (user.phone || "").replace(/\D/g, "");
+    const cleanUserName = user.name.trim().toLowerCase();
+
+    const userOrders = orders.filter((o) => {
+      const cleanOrderPhone = (o.customerPhone || "").replace(/\D/g, "");
+      const phoneMatch =
+        cleanUserPhone &&
+        cleanOrderPhone &&
+        (cleanUserPhone === cleanOrderPhone ||
+          cleanUserPhone.endsWith(cleanOrderPhone) ||
+          cleanOrderPhone.endsWith(cleanUserPhone));
+      const nameMatch = (o.customer || "").trim().toLowerCase() === cleanUserName;
+      return phoneMatch || nameMatch;
+    });
+
+    const ongoing = userOrders.find((o) => o.status !== "Concluído");
+    return ongoing || userOrders[0] || null;
+  }, [user, orders, targetOrder]);
+
+  const steps: Array<{ key: string; label: string; desc: string; icon: any }> = [
+    {
+      key: "Pedido Recebido",
+      label: "Pedido Recebido",
+      desc: "Registrado e confirmado no sistema HouseFit",
+      icon: ClipboardCheck,
+    },
+    {
+      key: "Em Preparo",
+      label: "Em Preparo",
+      desc: "Nossa cozinha está montando suas marmitas",
+      icon: Flame,
+    },
+    {
+      key: "Aguardando",
+      label: "Aguardando",
+      desc: "Pronto e embalado aguardando motoboy",
+      icon: CheckCircle2,
+    },
+    {
+      key: "Na Entrega",
+      label: "Na Entrega",
+      desc: "Entregador a caminho do seu endereço",
+      icon: Truck,
+    },
+  ];
+
+  const getStepIndex = (status: string) => {
+    const s = status.trim().toLowerCase();
+    if (s.includes("recebido")) return 0;
+    if (s.includes("preparo") || s.includes("preparando")) return 1;
+    if (s.includes("aguardando") || s.includes("pronto")) return 2;
+    if (s.includes("entrega")) return 3;
+    if (s.includes("concluído") || s.includes("concluido")) return 4;
+    return 0;
+  };
+
+  const currentStepIdx = activeOrder ? getStepIndex(activeOrder.status) : 0;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Acompanhamento ao Vivo</p>
+        <h3 style={{ fontSize: 22 }}>Status do seu Pedido</h3>
+        <p className="modal-description">
+          Acompanhe em tempo real as etapas de preparo e entrega da sua refeição.
+        </p>
+
+        {!activeOrder ? (
+          <div style={{ textAlign: "center", padding: "36px 16px" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--muted)" }}>
+              <Truck size={30} />
+            </div>
+            <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>Nenhum pedido em andamento</h4>
+            <p style={{ fontSize: 13, color: "var(--muted)", maxWidth: 340, margin: "0 auto 20px" }}>
+              Quando a sua compra for confirmada pela equipe da HouseFit, o status dinâmico aparecerá aqui automaticamente.
+            </p>
+            <button
+              className="primary-button compact"
+              onClick={onClose}
+              style={{ background: "var(--hunter)", color: "#fff", margin: "0 auto" }}
+            >
+              Fazer um pedido no cardápio
+            </button>
+          </div>
+        ) : (
+          <div style={{ marginTop: 16 }}>
+            {/* Live Indicator Header */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #1d3329 0%, #294738 100%)",
+                borderRadius: 14,
+                padding: "16px 20px",
+                color: "#fff",
+                boxShadow: "0 6px 20px rgba(29, 51, 41, 0.25)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.8 }}>
+                    Pedido HouseFit
+                  </span>
+                  <div style={{ fontSize: 20, fontWeight: 900, marginTop: 2 }}>{activeOrder.id}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 800 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 8px #4ade80" }} />
+                  Atualizado em tempo real
+                </div>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.9 }}>
+                Status atual: <strong style={{ color: "#d9f99d", fontSize: 14 }}>{activeOrder.status}</strong>
+              </div>
+            </div>
+
+            {/* Stepper Timeline */}
+            <div style={{ marginTop: 24, padding: "0 6px" }}>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 20 }}>
+                {steps.map((step, idx) => {
+                  const isDone = currentStepIdx > idx || currentStepIdx === 4;
+                  const isCurrent = currentStepIdx === idx && currentStepIdx !== 4;
+                  const Icon = step.icon;
+
+                  return (
+                    <div key={step.key} style={{ display: "flex", alignItems: "flex-start", gap: 14, position: "relative" }}>
+                      {/* Vertical line connecting nodes */}
+                      {idx < steps.length - 1 && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 17,
+                            top: 36,
+                            bottom: -20,
+                            width: 3,
+                            background: isDone ? "#256c42" : "#e5e7eb",
+                            zIndex: 1,
+                            borderRadius: 2,
+                          }}
+                        />
+                      )}
+
+                      {/* Node Icon */}
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: "50%",
+                          background: isDone ? "#256c42" : isCurrent ? "var(--hunter)" : "#f3f4f6",
+                          color: isDone || isCurrent ? "#ffffff" : "#9ca3af",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          zIndex: 2,
+                          border: isCurrent ? "3px solid #d9f99d" : "none",
+                          boxShadow: isCurrent ? "0 0 12px rgba(41, 71, 56, 0.45)" : "none",
+                          transition: "all 0.3s ease",
+                        }}
+                      >
+                        {isDone ? <Check size={18} /> : <Icon size={18} />}
+                      </div>
+
+                      {/* Node Text */}
+                      <div style={{ flex: 1, paddingTop: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <strong
+                            style={{
+                              fontSize: 14,
+                              color: isCurrent ? "var(--hunter)" : isDone ? "var(--ink)" : "var(--muted)",
+                              fontWeight: isCurrent ? 900 : 700,
+                            }}
+                          >
+                            {step.label}
+                          </strong>
+                          {isCurrent && (
+                            <span
+                              style={{
+                                background: "#e5efb8",
+                                color: "#256c42",
+                                fontSize: 10,
+                                fontWeight: 900,
+                                padding: "2px 7px",
+                                borderRadius: 10,
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Fase atual
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2, lineHeight: 1.35 }}>
+                          {step.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Order details summary */}
+            <div
+              style={{
+                marginTop: 22,
+                background: "#fafafa",
+                borderRadius: 12,
+                padding: "14px 16px",
+                border: "1px solid var(--line)",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+                Itens incluídos:
+              </div>
+              <div style={{ color: "var(--muted)", lineHeight: 1.4 }}>
+                {activeOrder.itemNames && activeOrder.itemNames.length > 0 ? activeOrder.itemNames.join(" • ") : `${activeOrder.items} refeições`}
+              </div>
+              {activeOrder.deliveryAddress && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)", color: "var(--muted)" }}>
+                  <strong style={{ color: "var(--ink)" }}>Entrega:</strong> {activeOrder.deliveryAddress}
+                </div>
+              )}
+            </div>
+
+            {/* WhatsApp Support CTA */}
+            <a
+              href={`https://wa.me/5565999865093?text=Ol%C3%A1%20HouseFit!%20Gostaria%20de%20informa%C3%A7%C3%B5es%20sobre%20o%20meu%20pedido%20${encodeURIComponent(activeOrder.id)}.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                marginTop: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                background: "#25D366",
+                color: "#ffffff",
+                padding: "12px 16px",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 800,
+                textDecoration: "none",
+                boxShadow: "0 4px 12px rgba(37, 211, 102, 0.25)",
+              }}
+            >
+              Falar com suporte no WhatsApp (65) 99986-5093
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

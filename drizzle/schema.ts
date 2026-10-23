@@ -1,7 +1,17 @@
 import { boolean, integer, numeric, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["user", "admin"]);
-export const statusEnum = pgEnum("order_status", ["Recebido", "Preparando", "Pronto", "Em entrega", "Concluído"]);
+export const statusEnum = pgEnum("order_status", [
+  "Pedido Recebido",
+  "Em Preparo",
+  "Aguardando",
+  "Na Entrega",
+  "Concluído",
+  "Recebido",
+  "Preparando",
+  "Pronto",
+  "Em entrega",
+]);
 export const channelEnum = pgEnum("order_channel", ["Delivery", "Retirada"]);
 export const movementTypeEnum = pgEnum("movement_type", ["entrada", "saida", "ajuste"]);
 

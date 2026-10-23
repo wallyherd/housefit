@@ -56,6 +56,7 @@ import {
   fetchDbProducts,
   upsertDbProduct,
   fetchDbOrders,
+  createDbOrder,
   updateDbOrderStatus,
   fetchDbCustomers,
   recordCustomerPurchase,
@@ -75,7 +76,7 @@ const sections: Array<{ label: Section; icon: any }> = [
   { label: "Relatórios", icon: BarChart3 },
 ];
 
-const statuses: OrderStatus[] = ["Recebido", "Preparando", "Pronto", "Em entrega", "Concluído"];
+const statuses: OrderStatus[] = ["Pedido Recebido", "Em Preparo", "Aguardando", "Na Entrega", "Concluído"];
 
 export default function Admin() {
   const [section, setSection] = useState<Section>("Visão geral");
@@ -90,6 +91,7 @@ export default function Admin() {
   const [notice, setNotice] = useState("");
 
   // Modals state
+  const [newSaleModalOpen, setNewSaleModalOpen] = useState(false);
   const [newCustomerModalOpen, setNewCustomerModalOpen] = useState(false);
   const [newPartnerModalOpen, setNewPartnerModalOpen] = useState(false);
   const [editProductModal, setEditProductModal] = useState<Product | null>(null);
@@ -138,7 +140,66 @@ export default function Admin() {
     saveToStorage("housefit-orders", next);
     // Atualizar no Supabase
     updateDbOrderStatus(id, status);
-    showToast(`Pedido ${id} atualizado para ${status.toLowerCase()}.`);
+    window.dispatchEvent(new Event("housefit-orders-updated"));
+    showToast(`Pedido ${id} atualizado para "${status}".`);
+  };
+
+  const handleCreateSale = (newOrder: Order) => {
+    const nextOrders = [newOrder, ...orders];
+    setOrders(nextOrders);
+    saveToStorage("housefit-orders", nextOrders);
+    createDbOrder(newOrder);
+
+    // Atualizar dados do cliente ou cadastrar
+    const customerPhone = newOrder.customerPhone || "";
+    recordCustomerPurchase(newOrder.customer, customerPhone, newOrder.total, newOrder.itemNames[0] || "Refeição");
+
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    const existingIdx = customers.findIndex(
+      (c) =>
+        (cleanPhone && c.phone && c.phone.replace(/\D/g, "") === cleanPhone) ||
+        c.name.toLowerCase().trim() === newOrder.customer.toLowerCase().trim()
+    );
+
+    let nextCustomers: Customer[];
+    if (existingIdx >= 0) {
+      nextCustomers = customers.map((c, idx) =>
+        idx === existingIdx
+          ? {
+              ...c,
+              orders: c.orders + 1,
+              spent: c.spent + newOrder.total,
+              lastOrder: "Hoje",
+              favorite: newOrder.itemNames[0] || c.favorite,
+            }
+          : c
+      );
+    } else {
+      const initials =
+        newOrder.customer
+          .split(" ")
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase() || "CL";
+      const createdCustomer: Customer = {
+        id: `c-${Date.now()}`,
+        name: newOrder.customer,
+        phone: customerPhone,
+        initials,
+        orders: 1,
+        spent: newOrder.total,
+        lastOrder: "Hoje",
+        favorite: newOrder.itemNames[0] || "Combo HouseFit",
+      };
+      nextCustomers = [createdCustomer, ...customers];
+    }
+    setCustomers(nextCustomers);
+    saveToStorage("housefit-customers", nextCustomers);
+
+    window.dispatchEvent(new Event("housefit-orders-updated"));
+    setNewSaleModalOpen(false);
+    showToast(`Venda ${newOrder.id} lançada para ${newOrder.customer}!`);
   };
 
   const toggleAvailability = (id: string) => {
@@ -334,6 +395,7 @@ export default function Admin() {
               orders={orders}
               lowStock={lowStock}
               setSection={setSection}
+              onOpenNewSaleModal={() => setNewSaleModalOpen(true)}
             />
           )}
 
@@ -343,6 +405,7 @@ export default function Admin() {
               filter={orderFilter}
               setFilter={setOrderFilter}
               onStatusChange={updateOrderStatus}
+              onOpenNewSaleModal={() => setNewSaleModalOpen(true)}
             />
           )}
 
@@ -382,6 +445,16 @@ export default function Admin() {
           <Check size={17} /> {notice}
           <button onClick={() => setNotice("")}><X size={14} /></button>
         </div>
+      )}
+
+      {/* New Sale Modal */}
+      {newSaleModalOpen && (
+        <NewSaleModal
+          customers={customers}
+          products={products}
+          onClose={() => setNewSaleModalOpen(false)}
+          onSubmit={handleCreateSale}
+        />
       )}
 
       {/* New Customer Modal */}
@@ -431,6 +504,7 @@ function Overview({
   orders,
   lowStock,
   setSection,
+  onOpenNewSaleModal,
 }: {
   period: "Semana" | "Mês";
   setPeriod: (period: "Semana" | "Mês") => void;
@@ -439,6 +513,7 @@ function Overview({
   orders: Order[];
   lowStock: number;
   setSection: (section: Section) => void;
+  onOpenNewSaleModal: () => void;
 }) {
   const statusCount = statuses.map((status) => ({
     status,
@@ -453,9 +528,18 @@ function Overview({
           <h2>Bom dia, Cozinha HouseFit <span>●</span></h2>
           <p className="content-subtitle">Aqui está o resumo da sua produção, vendas e estoque hoje.</p>
         </div>
-        <button className="primary-button compact" onClick={() => setSection("Pedidos")}>
-          <ClipboardList size={16} /> Ver pedidos
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            className="primary-button compact"
+            onClick={onOpenNewSaleModal}
+            style={{ background: "var(--hunter)", color: "#fff", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Plus size={16} /> Lançar nova venda
+          </button>
+          <button className="primary-button compact" onClick={() => setSection("Pedidos")}>
+            <ClipboardList size={16} /> Ver pedidos
+          </button>
+        </div>
       </div>
 
       <div className="metric-grid">
@@ -589,11 +673,13 @@ function OrdersView({
   filter,
   setFilter,
   onStatusChange,
+  onOpenNewSaleModal,
 }: {
   orders: Order[];
   filter: "Todos" | OrderStatus;
   setFilter: (filter: "Todos" | OrderStatus) => void;
   onStatusChange: (id: string, status: OrderStatus) => void;
+  onOpenNewSaleModal: () => void;
 }) {
   return (
     <>
@@ -604,8 +690,15 @@ function OrdersView({
           <p className="content-subtitle">Acompanhe cada pedido do clique até a entrega.</p>
         </div>
         <div className="view-actions">
+          <button
+            className="primary-button compact"
+            onClick={onOpenNewSaleModal}
+            style={{ background: "var(--hunter)", color: "#fff", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Plus size={16} /> Lançar nova venda
+          </button>
           <button className="outline-action"><Filter size={16} /> Filtrar</button>
-          <button className="primary-button compact"><Download size={16} /> Exportar</button>
+          <button className="outline-action"><Download size={16} /> Exportar</button>
         </div>
       </div>
 
@@ -1594,3 +1687,324 @@ function SettingsModal({
     </div>
   );
 }
+
+// Modal para o admin lançar nova venda
+function NewSaleModal({
+  customers,
+  products,
+  onClose,
+  onSubmit,
+}: {
+  customers: Customer[];
+  products: Product[];
+  onClose: () => void;
+  onSubmit: (order: Order) => void;
+}) {
+  const authUsers = loadFromStorage<Array<{ id: string; name: string; email: string; phone: string }>>(
+    "housefit-auth-users",
+    []
+  );
+
+  const customerOptions = useMemo(() => {
+    const list: Array<{ id: string; name: string; phone: string; email?: string }> = [];
+    const seen = new Set<string>();
+
+    authUsers.forEach((u) => {
+      const key = `${u.name.toLowerCase()}-${(u.phone || "").replace(/\D/g, "")}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({ id: u.id, name: u.name, phone: u.phone, email: u.email });
+      }
+    });
+
+    customers.forEach((c) => {
+      const key = `${c.name.toLowerCase()}-${(c.phone || "").replace(/\D/g, "")}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push({ id: c.id, name: c.name, phone: c.phone });
+      }
+    });
+
+    return list;
+  }, [customers, authUsers]);
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customerOptions[0]?.id || "manual");
+  const [customerName, setCustomerName] = useState(customerOptions[0]?.name || "");
+  const [customerPhone, setCustomerPhone] = useState(customerOptions[0]?.phone || "");
+  const [isManualCustomer, setIsManualCustomer] = useState(false);
+
+  const comboPresets = [
+    { label: "Combo 05 marmitas", price: 119 },
+    { label: "Combo 10 marmitas", price: 229 },
+    { label: "Combo 20 marmitas", price: 449 },
+    { label: "Combo 10 caldos", price: 159 },
+    { label: "Combo 20 caldos", price: 299 },
+  ];
+
+  const [selectedPreset, setSelectedPreset] = useState("Combo 05 marmitas");
+  const [itemsText, setItemsText] = useState("Combo 05 marmitas selecionadas pelo cliente");
+  const [totalPrice, setTotalPrice] = useState("119");
+  const [channel, setChannel] = useState<"Delivery" | "Retirada">("Delivery");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Pix");
+  const [status, setStatus] = useState<OrderStatus>("Pedido Recebido");
+
+  const handleSelectCustomer = (id: string) => {
+    setSelectedCustomerId(id);
+    if (id === "manual") {
+      setIsManualCustomer(true);
+      setCustomerName("");
+      setCustomerPhone("");
+    } else {
+      setIsManualCustomer(false);
+      const found = customerOptions.find((c) => c.id === id);
+      if (found) {
+        setCustomerName(found.name);
+        setCustomerPhone(found.phone);
+      }
+    }
+  };
+
+  const handlePresetChange = (preset: { label: string; price: number }) => {
+    setSelectedPreset(preset.label);
+    setItemsText(`${preset.label}`);
+    setTotalPrice(String(preset.price));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName.trim()) {
+      alert("Por favor, selecione ou informe o nome do cliente.");
+      return;
+    }
+
+    const priceNum = parseFloat(totalPrice) || 0;
+    const orderNumber = `#HF-${Math.floor(1000 + Math.random() * 9000)}`;
+    const initials =
+      customerName
+        .trim()
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase() || "CL";
+
+    const newOrder: Order = {
+      id: orderNumber,
+      customer: customerName.trim(),
+      customerPhone: customerPhone.trim() || undefined,
+      initials,
+      items: 1,
+      itemNames: [itemsText.trim() || selectedPreset],
+      subtotal: priceNum,
+      total: priceNum,
+      status,
+      channel,
+      deliveryAddress: channel === "Delivery" && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
+      time: "Agora",
+      payment: paymentMethod,
+    };
+
+    onSubmit(newOrder);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Painel da Cozinha & Vendas</p>
+        <h3 style={{ fontSize: 22 }}>Lançar Nova Venda</h3>
+        <p className="modal-description">
+          Lance uma venda no sistema selecionando a conta do cliente para que ele possa acompanhar o status em tempo real.
+        </p>
+
+        <form onSubmit={handleSubmit} className="modal-form-grid" style={{ marginTop: 14 }}>
+          {/* Cliente selector */}
+          <div className="modal-form-group">
+            <label>Conta do Cliente</label>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => handleSelectCustomer(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "#fafafa",
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              <optgroup label="Clientes e Contas Cadastradas">
+                {customerOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.phone ? `(${c.phone})` : ""} {c.email ? `• ${c.email}` : ""}
+                  </option>
+                ))}
+              </optgroup>
+              <option value="manual">+ Digitar outro cliente manualmente</option>
+            </select>
+          </div>
+
+          {isManualCustomer && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="modal-form-group">
+                <label>Nome do Cliente *</label>
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Ex.: Mariana Silva"
+                  required
+                />
+              </div>
+              <div className="modal-form-group">
+                <label>WhatsApp / Celular</label>
+                <input
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="(65) 99999-9999"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Quick Combos Presets */}
+          <div className="modal-form-group">
+            <label>Combos rápidos</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+              {comboPresets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.label}
+                  onClick={() => handlePresetChange(preset)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    border: selectedPreset === preset.label ? "2px solid var(--hunter)" : "1px solid var(--line)",
+                    background: selectedPreset === preset.label ? "var(--hunter)" : "#fff",
+                    color: selectedPreset === preset.label ? "#fff" : "var(--ink)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {preset.label} (R$ {preset.price})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Items Description */}
+          <div className="modal-form-group">
+            <label>Itens / Descrição do Pedido</label>
+            <input
+              value={itemsText}
+              onChange={(e) => setItemsText(e.target.value)}
+              placeholder="Ex.: Combo 05 marmitas (3x Frango, 2x Carne)"
+              required
+            />
+          </div>
+
+          {/* Valor and Status */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Valor Total (R$) *</label>
+              <input
+                type="number"
+                step="0.50"
+                value={totalPrice}
+                onChange={(e) => setTotalPrice(e.target.value)}
+                placeholder="119.00"
+                required
+              />
+            </div>
+            <div className="modal-form-group">
+              <label>Status Inicial</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as OrderStatus)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "#fafafa",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                <option value="Pedido Recebido">Pedido Recebido</option>
+                <option value="Em Preparo">Em Preparo</option>
+                <option value="Aguardando">Aguardando</option>
+                <option value="Na Entrega">Na Entrega</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Forma de Pagamento e Canal */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Forma de Pagamento</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "#fafafa",
+                  fontSize: 13,
+                }}
+              >
+                <option value="Pix">Pix</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Dinheiro">Dinheiro</option>
+              </select>
+            </div>
+            <div className="modal-form-group">
+              <label>Canal</label>
+              <select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value as "Delivery" | "Retirada")}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "#fafafa",
+                  fontSize: 13,
+                }}
+              >
+                <option value="Delivery">Delivery</option>
+                <option value="Retirada">Retirada no local</option>
+              </select>
+            </div>
+          </div>
+
+          {channel === "Delivery" && (
+            <div className="modal-form-group">
+              <label>Endereço de Entrega (Opcional)</label>
+              <input
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+                placeholder="Rua, número, bairro, complemento..."
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button full"
+            style={{ marginTop: 16, background: "var(--hunter)", color: "#fff" }}
+          >
+            Confirmar e Lançar Venda <Check size={16} />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+

@@ -13,7 +13,34 @@ export type Product = {
   available: boolean;
 };
 
-export type OrderStatus = "Recebido" | "Preparando" | "Pronto" | "Em entrega" | "Concluído";
+export type OrderStatus =
+  | "Pedido Recebido"
+  | "Em Preparo"
+  | "Aguardando"
+  | "Na Entrega"
+  | "Concluído"
+  | "Recebido"
+  | "Preparando"
+  | "Pronto"
+  | "Em entrega";
+
+export const ORDER_STATUSES: OrderStatus[] = [
+  "Pedido Recebido",
+  "Em Preparo",
+  "Aguardando",
+  "Na Entrega",
+  "Concluído",
+];
+
+export function normalizeOrderStatus(
+  status: string
+): "Pedido Recebido" | "Em Preparo" | "Aguardando" | "Na Entrega" | "Concluído" {
+  if (status === "Recebido" || status === "Pedido Recebido") return "Pedido Recebido";
+  if (status === "Preparando" || status === "Em Preparo") return "Em Preparo";
+  if (status === "Pronto" || status === "Aguardando") return "Aguardando";
+  if (status === "Em entrega" || status === "Na Entrega") return "Na Entrega";
+  return "Concluído";
+}
 
 export type Order = {
   id: string;
@@ -144,10 +171,10 @@ export const initialProducts: Product[] = [
 ];
 
 export const initialOrders: Order[] = [
-  { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Preparando", channel: "Delivery", time: "há 8 min", payment: "Pix" },
-  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo 05 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 119, discountAmount: 11.9, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 107.1, status: "Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
-  { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Pronto", channel: "Delivery", time: "há 21 min", payment: "Pix" },
-  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 229, discountAmount: 34.35, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 194.65, status: "Em entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
+  { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de frango ao molho vermelho", "Suco de morango"], total: 66, status: "Em Preparo", channel: "Delivery", time: "há 8 min", payment: "Pix" },
+  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo 05 marmitas (3x Panqueca de frango, 2x Strogonoff de carne)"], subtotal: 119, discountAmount: 11.9, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 107.1, status: "Pedido Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
+  { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Aguardando", channel: "Delivery", time: "há 21 min", payment: "Pix" },
+  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo 10 marmitas (5x Frango em cubos, 5x Galinhada)"], subtotal: 229, discountAmount: 34.35, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 194.65, status: "Na Entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
   { id: "#HF-1044", customer: "Ana Souza", customerPhone: "(65) 98455-7788", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
   { id: "#HF-1043", customer: "Diego Rocha", customerPhone: "(65) 99344-9900", initials: "DR", items: 3, itemNames: ["Patinho moído, arroz e feijão carioca"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
 ];
