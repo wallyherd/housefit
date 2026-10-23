@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
@@ -21,6 +21,9 @@ import {
   X,
   AlertCircle,
   Shield,
+  Eye,
+  ZoomIn,
+  RotateCcw,
 } from "lucide-react";
 import {
   formatBRL,
@@ -586,7 +589,29 @@ export default function Home() {
                 <p className="kicker">Seu pedido</p>
                 <h3>{cartCount ? `${cartCount} combo(s)` : "Ainda vazio"}</h3>
               </div>
-              <button className="icon-button" onClick={() => setCartOpen(false)}><X size={19} /></button>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                }}
+                title="Volte para o cardápio"
+              >
+                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--ink-soft)" }}>
+                  Volte para o cardápio
+                </span>
+                <ArrowRight size={13} style={{ color: "var(--ink-soft)" }} />
+                <span className="icon-button" style={{ width: 30, height: 30 }}>
+                  <X size={18} />
+                </span>
+              </button>
             </div>
 
             {cart.length > 0 ? (
@@ -1020,25 +1045,27 @@ export default function Home() {
         />
       )}
 
-      {/* Botão Flutuante Redondo do WhatsApp - Canto Inferior Esquerdo */}
-      <a
-        href="https://wa.me/5565999865093?text=Ol%C3%A1%20HouseFit!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida."
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Fale conosco no WhatsApp"
-        title="Fale conosco no WhatsApp (65) 99986-5093"
-        className="floating-whatsapp-btn"
-      >
-        <svg
-          width="32"
-          height="32"
-          viewBox="0 0 24 24"
-          fill="#ffffff"
-          style={{ display: "block" }}
+      {/* Botão Flutuante Redondo do WhatsApp - Canto Inferior Esquerdo (escondido se modal ou carrinho aberto) */}
+      {!comboModalProduct && !cartOpen && !checkoutOpen && !registerModalOpen && !postPaymentModalOpen && !authModalOpen && (
+        <a
+          href="https://wa.me/5565999865093?text=Ol%C3%A1%20HouseFit!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida."
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Fale conosco no WhatsApp"
+          title="Fale conosco no WhatsApp (65) 99986-5093"
+          className="floating-whatsapp-btn"
         >
-          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.41a8.21 8.21 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.66c-.19-.09-1.11-.55-1.28-.61-.17-.07-.3-.1-.42.1-.13.19-.48.61-.59.74-.11.12-.22.14-.41.05-.19-.09-.8-.3-1.53-.95-.57-.51-.95-1.13-1.06-1.33-.11-.19-.01-.3.08-.39.09-.09.19-.22.28-.33.1-.11.13-.19.19-.31.07-.12.03-.24-.02-.33-.05-.1-.42-1.01-.58-1.39-.15-.36-.31-.31-.42-.32h-.36c-.12 0-.33.05-.5.24-.17.19-.66.65-.66 1.58s.68 1.83.77 1.96c.1.12 1.34 2.05 3.25 2.87.45.2.81.31 1.09.4.46.15.88.13 1.21.08.37-.06 1.11-.45 1.27-.89.16-.44.16-.81.11-.89-.04-.08-.16-.13-.35-.22z" />
-        </svg>
-      </a>
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="#ffffff"
+            style={{ display: "block" }}
+          >
+            <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.41a8.21 8.21 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.66c-.19-.09-1.11-.55-1.28-.61-.17-.07-.3-.1-.42.1-.13.19-.48.61-.59.74-.11.12-.22.14-.41.05-.19-.09-.8-.3-1.53-.95-.57-.51-.95-1.13-1.06-1.33-.11-.19-.01-.3.08-.39.09-.09.19-.22.28-.33.1-.11.13-.19.19-.31.07-.12.03-.24-.02-.33-.05-.1-.42-1.01-.58-1.39-.15-.36-.31-.31-.42-.32h-.36c-.12 0-.33.05-.5.24-.17.19-.66.65-.66 1.58s.68 1.83.77 1.96c.1.12 1.34 2.05 3.25 2.87.45.2.81.31 1.09.4.46.15.88.13 1.21.08.37-.06 1.11-.45 1.27-.89.16-.44.16-.81.11-.89-.04-.08-.16-.13-.35-.22z" />
+          </svg>
+        </a>
+      )}
     </div>
   );
 }
@@ -1103,6 +1130,7 @@ function ComboCustomizerModal({
   const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
   const [modalFilter, setModalFilter] = useState<string>(isSoupCombo ? "Caldos" : "Todas");
   const [modalSearch, setModalSearch] = useState("");
+  const [inspectingProduct, setInspectingProduct] = useState<Product | null>(null);
 
   // Available marmitas/caldos with stock from inventory
   const availableMarmitas = useMemo(() => {
@@ -1253,7 +1281,22 @@ function ComboCustomizerModal({
                 key={marmita.id}
                 className={`marmita-option-card ${currentQty > 0 ? "has-selected" : ""}`}
               >
-                <img src={marmita.image} alt={marmita.name} />
+                <div
+                  className="marmita-img-thumb"
+                  onClick={() => setInspectingProduct(marmita)}
+                  title="Clique para ver em 3D e detalhes"
+                >
+                  <img
+                    src={marmita.image || "/marmitas/marmita-1.jpg"}
+                    alt={marmita.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = "/marmitas/marmita-1.jpg";
+                    }}
+                  />
+                  <span className="marmita-3d-hint">
+                    <Eye size={9} /> 3D
+                  </span>
+                </div>
                 <div className="marmita-option-body">
                   <div>
                     <h4>{marmita.name}</h4>
@@ -1315,6 +1358,170 @@ function ComboCustomizerModal({
             )}
           </button>
         </div>
+
+        {/* Modal 3D Interativo (Opção C) */}
+        {inspectingProduct && (
+          <Product3DViewerModal
+            product={inspectingProduct}
+            onClose={() => setInspectingProduct(null)}
+            onAddOne={() => updateItemQty(inspectingProduct, 1)}
+            canAdd={totalSelected < targetCount && (selectedCounts[inspectingProduct.id] || 0) < inspectingProduct.stock}
+            currentQty={selectedCounts[inspectingProduct.id] || 0}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Product3DViewerModal({
+  product,
+  onClose,
+  onAddOne,
+  canAdd,
+  currentQty,
+}: {
+  product: Product;
+  onClose: () => void;
+  onAddOne?: () => void;
+  canAdd?: boolean;
+  currentQty?: number;
+}) {
+  const [rotate, setRotate] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [glare, setGlare] = useState({ x: 50, y: 50 });
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    startPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const px = Math.min(100, Math.max(0, (x / rect.width) * 100));
+    const py = Math.min(100, Math.max(0, (y / rect.height) * 100));
+    setGlare({ x: px, y: py });
+
+    if (isDragging.current) {
+      const dx = (e.clientX - startPos.current.x) * 0.4;
+      const dy = (e.clientY - startPos.current.y) * 0.4;
+      setRotate((prev) => ({
+        x: Math.max(-28, Math.min(28, prev.x - dy)),
+        y: Math.max(-35, Math.min(35, prev.y + dx)),
+      }));
+      startPos.current = { x: e.clientX, y: e.clientY };
+    } else {
+      const rotY = (x / rect.width - 0.5) * 26;
+      const rotX = -(y / rect.height - 0.5) * 22;
+      setRotate({ x: rotX, y: rotY });
+    }
+  };
+
+  const handlePointerUp = () => {
+    isDragging.current = false;
+  };
+
+  const reset3D = () => {
+    setRotate({ x: 0, y: 0 });
+    setZoom(1);
+    setGlare({ x: 50, y: 50 });
+  };
+
+  return (
+    <div className="viewer3d-backdrop" onClick={onClose}>
+      <div className="viewer3d-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="Fechar">
+          <X size={18} />
+        </button>
+
+        <span className="viewer3d-badge">
+          <Eye size={12} /> Visualização 3D • 360° Parallax
+        </span>
+
+        <h3>{product.name}</h3>
+        <p>{product.description}</p>
+
+        <div
+          className="viewer3d-stage"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
+          <div
+            className="viewer3d-box"
+            style={{
+              transform: `perspective(900px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg) scale(${zoom})`,
+              "--glare-x": `${glare.x}%`,
+              "--glare-y": `${glare.y}%`,
+            } as React.CSSProperties}
+          >
+            <img
+              src={product.image || "/marmitas/marmita-1.jpg"}
+              alt={product.name}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/marmitas/marmita-1.jpg";
+              }}
+            />
+            <div className="viewer3d-glare" />
+          </div>
+        </div>
+
+        <div className="viewer3d-hint-text">
+          <span>🖐️ Arraste na imagem para girar e inclinar em 3D</span>
+        </div>
+
+        <div className="viewer3d-controls">
+          <button
+            type="button"
+            className={`viewer3d-btn ${zoom === 1 ? "active" : ""}`}
+            onClick={() => setZoom(1)}
+          >
+            1.0x Normal
+          </button>
+          <button
+            type="button"
+            className={`viewer3d-btn ${zoom === 1.25 ? "active" : ""}`}
+            onClick={() => setZoom(1.25)}
+          >
+            <ZoomIn size={13} /> 1.25x
+          </button>
+          <button
+            type="button"
+            className={`viewer3d-btn ${zoom === 1.5 ? "active" : ""}`}
+            onClick={() => setZoom(1.5)}
+          >
+            <ZoomIn size={13} /> 1.5x Zoom
+          </button>
+          <button
+            type="button"
+            className="viewer3d-btn"
+            onClick={reset3D}
+            title="Resetar rotação e zoom"
+          >
+            <RotateCcw size={13} />
+          </button>
+        </div>
+
+        {onAddOne && (
+          <div style={{ marginTop: 16, width: "100%" }}>
+            <button
+              type="button"
+              className="primary-button full"
+              disabled={!canAdd}
+              onClick={() => {
+                onAddOne();
+                onClose();
+              }}
+            >
+              <Plus size={16} /> Adicionar ao combo {currentQty ? `(${currentQty} já selecionada)` : ""}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

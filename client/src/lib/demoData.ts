@@ -217,15 +217,15 @@ export const productReport = [
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
 ];
 
-export const PRODUCTS_STORAGE_KEY = "housefit-products-v4";
+export const PRODUCTS_STORAGE_KEY = "housefit-products-v6";
 
 export function sanitizeProducts(savedList: Product[]): Product[] {
   const comboUpdates: Record<string, Partial<Product>> = {
-    "combo-20": { name: "Combo 20 marmitas", price: 449 },
-    "combo-10": { name: "Combo 10 marmitas", price: 229 },
-    "combo-5": { name: "Combo 05 marmitas", price: 119 },
-    "combo-caldos": { name: "Combo 10 caldos", price: 159 },
-    "combo-caldos-20": { name: "Combo 20 caldos", price: 299 },
+    "combo-20": { name: "Combo 20 marmitas", price: 449, image: "/combo-20-marmitas.jpg" },
+    "combo-10": { name: "Combo 10 marmitas", price: 229, image: "/combo-10-marmitas.jpg" },
+    "combo-5": { name: "Combo 05 marmitas", price: 119, image: "/combo-5-marmitas.jpg" },
+    "combo-caldos": { name: "Combo 10 caldos", price: 159, image: "/combo-10-caldos.jpg" },
+    "combo-caldos-20": { name: "Combo 20 caldos", price: 299, image: "/combo-20-caldos.jpg" },
   };
 
   const updated = savedList.map((p) => {
@@ -246,7 +246,19 @@ export function sanitizeProducts(savedList: Product[]): Product[] {
         name: override.name || cleanName,
       };
     }
-    return { ...p, name: cleanName };
+
+    // Se a imagem não for uma das fotos reais locais, atualizar com a imagem do catálogo inicial
+    let image = p.image;
+    if (p.category !== "Combos" && (!image || !image.startsWith("/marmitas/"))) {
+      const matchInit = initialProducts.find((ip) => ip.id === p.id || ip.name.toLowerCase() === p.name.toLowerCase());
+      if (matchInit) {
+        image = matchInit.image;
+      } else {
+        image = "/marmitas/marmita-1.jpg";
+      }
+    }
+
+    return { ...p, name: cleanName, image };
   });
 
   // Garantir que combo-caldos-20 exista na lista
