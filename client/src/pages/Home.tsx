@@ -28,6 +28,7 @@ import {
   Flame,
   CheckCircle2,
   ClipboardCheck,
+  Bell,
 } from "lucide-react";
 import {
   formatBRL,
@@ -55,6 +56,10 @@ import {
   registerDbUser,
   checkUserPhoneExists,
   updateDbUser,
+  fetchDbNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  type DbNotification,
 } from "@/lib/supabaseService";
 import { PaymentModal } from "@/components/PaymentModal";
 
@@ -188,31 +193,49 @@ export default function Home() {
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
   const [trackingTargetOrder, setTrackingTargetOrder] = useState<Order | null>(null);
 
-  // Orders State & Real-time sync
-  const [orders, setOrders] = useState<Order[]>(() =>
-    loadFromStorage<Order[]>("housefit-orders", initialOrders)
-  );
+  const cleanCachedOrders = (stored: Order[]) =>
+    (stored || []).filter((o) => !o.id?.match?.(/^#?HF-104[3-8]$/));
+
+  // Orders State & Real-time sync (100% dados reais)
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const raw = loadFromStorage<Order[]>("housefit-orders", []);
+    return cleanCachedOrders(raw);
+  });
+
+  // Notificações do usuário comum (atualizações de status de pedidos)
+  const [notifications, setNotifications] = useState<DbNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const loadNotifications = () => {
+    const identifier = currentUser?.email || currentUser?.phone;
+    fetchDbNotifications("user", identifier || undefined).then((data) => {
+      setNotifications(data);
+    });
+  };
 
   useEffect(() => {
     const syncOrders = () => {
-      const stored = loadFromStorage<Order[]>("housefit-orders", initialOrders);
+      const stored = cleanCachedOrders(loadFromStorage<Order[]>("housefit-orders", []));
       setOrders(stored);
     };
     window.addEventListener("storage", syncOrders);
     window.addEventListener("housefit-orders-updated", syncOrders);
 
     fetchDbOrders().then((data) => {
-      if (data && data.length > 0) {
-        setOrders(data);
-        saveToStorage("housefit-orders", data);
+      if (data) {
+        const clean = cleanCachedOrders(data);
+        setOrders(clean);
+        saveToStorage("housefit-orders", clean);
       }
     });
 
     const timer = setInterval(() => {
       fetchDbOrders().then((data) => {
-        if (data && data.length > 0) {
-          setOrders(data);
-          saveToStorage("housefit-orders", data);
+        if (data) {
+          const clean = cleanCachedOrders(data);
+          setOrders(clean);
+          saveToStorage("housefit-orders", clean);
         }
       });
     }, 8000);
@@ -223,6 +246,60 @@ export default function Home() {
       clearInterval(timer);
     };
   }, []);
+
+  // Notificações do usuário comum sincronizadas em tempo real
+  useEffect(() => {
+    loadNotifications();
+
+    const handleUpdated = () => {
+      loadNotifications();
+    };
+    window.addEventListener("housefit-orders-updated", handleUpdated);
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("housefit-orders-updated", handleUpdated);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [currentUser]);
+
+  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = async () => {
+    const identifier = currentUser?.email || currentUser?.phone;
+    await markAllNotificationsAsRead("user", identifier || undefined);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleNotificationClick = async (notif: DbNotification) => {
+    if (!notif.read) {
+      markNotificationAsRead(notif.id);
+      setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)));
+    }
+    setNotificationsOpen(false);
+    if (notif.orderId) {
+      const cleanId = notif.orderId.replace(/^#/, "");
+      const match = orders.find((o) => o.id === notif.orderId || o.id === `#${cleanId}` || o.id === cleanId);
+      if (match) {
+        setTrackingTargetOrder(match);
+        setTrackingModalOpen(true);
+      } else {
+        fetchDbOrders().then((all) => {
+          const found = all.find((o) => o.id === notif.orderId || o.id === `#${cleanId}` || o.id === cleanId);
+          if (found) {
+            setTrackingTargetOrder(found);
+            setTrackingModalOpen(true);
+          }
+        });
+      }
+    }
+  };
 
   const saveCart = (nextCart: CartItem[]) => {
     setCart(nextCart);
@@ -740,6 +817,78 @@ export default function Home() {
                 <User size={15} /> Entrar
               </button>
             )}
+
+            {/* Sininho de Notificações para Usuários Comuns */}
+            <div className="bell-container" ref={notifRef}>
+              <button
+                className="user-bell-btn"
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                title="Notificações e atualizações do pedido"
+                aria-label="Notificações"
+              >
+                <Bell size={18} />
+                {unreadNotifCount > 0 && <span className="bell-badge">{unreadNotifCount}</span>}
+              </button>
+
+              {notificationsOpen && (
+                <div className="notifications-dropdown">
+                  <div className="notifications-header">
+                    <h4>
+                      <Bell size={14} /> Atualizações do Pedido
+                      {unreadNotifCount > 0 && <span className="unread-tag">{unreadNotifCount} nova(s)</span>}
+                    </h4>
+                    {unreadNotifCount > 0 && (
+                      <button className="mark-read-btn" onClick={handleMarkAllRead}>
+                        Marcar lidas
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="notifications-list">
+                    {notifications.length === 0 ? (
+                      <div className="notifications-empty">
+                        <Bell size={24} style={{ color: "var(--line)" }} />
+                        <span>Nenhuma notificação no momento</span>
+                        <small style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", display: "block" }}>
+                          Quando o status do seu pedido mudar (preparo, entrega, pagamento confirmado), você será avisado aqui em tempo real.
+                        </small>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`notification-item ${!n.read ? "unread" : ""}`}
+                          onClick={() => handleNotificationClick(n)}
+                        >
+                          <div className={`notification-icon ${n.type}`}>
+                            {n.type === "order_paid" ? (
+                              <CheckCircle2 size={15} />
+                            ) : n.type === "order_status" ? (
+                              <Truck size={15} />
+                            ) : (
+                              <ShoppingBag size={15} />
+                            )}
+                          </div>
+                          <div className="notif-content">
+                            <div className="notif-title-row">
+                              <strong>{n.title}</strong>
+                              <small>{new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
+                            </div>
+                            <p>{n.message}</p>
+                            {n.orderId && (
+                              <span style={{ fontSize: 11, color: "var(--hunter)", fontWeight: 700, marginTop: 4, display: "inline-block" }}>
+                                Clique para rastrear pedido →
+                              </span>
+                            )}
+                          </div>
+                          {!n.read && <div className="notif-dot" />}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <button className="cart-button" onClick={() => setCartOpen(true)} aria-label="Abrir carrinho">
               <ShoppingBag size={19} />

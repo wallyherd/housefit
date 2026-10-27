@@ -140,6 +140,9 @@ export async function fetchDbOrders(): Promise<Order[]> {
         channel: o.channel as "Delivery" | "Retirada",
         time: timeAgo,
         payment: o.paymentMethod || "Pix",
+        isPaid: Boolean(o.isPaid),
+        paidAt: o.paidAt || undefined,
+        createdAt: o.createdAt || undefined,
       };
     });
   } catch (err) {
@@ -151,6 +154,7 @@ export async function fetchDbOrders(): Promise<Order[]> {
 export async function createDbOrder(order: Order): Promise<boolean> {
   try {
     const cleanNumber = order.id.replace("#", "");
+    const isPaid = Boolean(order.isPaid);
     const payload = {
       orderNumber: cleanNumber,
       customerName: order.customer,
@@ -168,6 +172,8 @@ export async function createDbOrder(order: Order): Promise<boolean> {
       couponCode: order.couponCode || null,
       partnerName: order.partnerName || null,
       total: order.total.toFixed(2),
+      isPaid,
+      paidAt: isPaid ? (order.paidAt || new Date().toISOString()) : null,
     };
 
     const { error } = await supabase.from("orders").insert(payload);
@@ -175,6 +181,29 @@ export async function createDbOrder(order: Order): Promise<boolean> {
       console.error("[Supabase] Erro ao salvar pedido:", error.message);
       return false;
     }
+
+    // Gerar notificação para o Admin
+    createDbNotification({
+      type: "new_order",
+      title: "Novo pedido registrado!",
+      message: `Pedido #${cleanNumber} de ${order.customer} no valor de R$ ${order.total.toFixed(2)} (${order.payment}).`,
+      orderId: cleanNumber,
+      userPhone: order.customerPhone || undefined,
+      recipientRole: "admin",
+    });
+
+    // Gerar notificação para o Cliente
+    if (order.customerPhone) {
+      createDbNotification({
+        type: "new_order",
+        title: "Pedido recebido com sucesso!",
+        message: `Seu pedido #${cleanNumber} foi recebido e já está com a equipe da HouseFit!`,
+        orderId: cleanNumber,
+        userPhone: order.customerPhone,
+        recipientRole: "user",
+      });
+    }
+
     return true;
   } catch (err) {
     console.error("[Supabase] Falha ao criar pedido:", err);
@@ -194,9 +223,98 @@ export async function updateDbOrderStatus(orderId: string, status: OrderStatus):
       console.error("[Supabase] Erro ao atualizar status do pedido:", error.message);
       return false;
     }
+
+    // Buscar dados do pedido para enviar notificação ao cliente
+    const { data: ord } = await supabase
+      .from("orders")
+      .select("customerPhone, customerName")
+      .eq("orderNumber", cleanNumber)
+      .single();
+
+    if (ord?.customerPhone) {
+      await createDbNotification({
+        type: "order_status",
+        title: `Atualização: ${status}`,
+        message: `Seu pedido #${cleanNumber} foi atualizado para o status: "${status}".`,
+        orderId: cleanNumber,
+        userPhone: ord.customerPhone,
+        recipientRole: "user",
+      });
+    }
+
     return true;
   } catch (err) {
     console.error("[Supabase] Falha ao atualizar pedido:", err);
+    return false;
+  }
+}
+
+export async function updateDbOrderPayment(orderId: string, isPaid: boolean): Promise<boolean> {
+  try {
+    const cleanNumber = orderId.replace("#", "");
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        isPaid,
+        paidAt: isPaid ? now : null,
+        updatedAt: now,
+      })
+      .eq("orderNumber", cleanNumber);
+
+    if (error) {
+      console.error("[Supabase] Erro ao atualizar pagamento do pedido:", error.message);
+      return false;
+    }
+
+    // Notificar cliente se foi confirmado
+    const { data: ord } = await supabase
+      .from("orders")
+      .select("customerPhone, customerName, total")
+      .eq("orderNumber", cleanNumber)
+      .single();
+
+    if (isPaid && ord?.customerPhone) {
+      await createDbNotification({
+        type: "order_paid",
+        title: "Pagamento Confirmado!",
+        message: `O pagamento do seu pedido #${cleanNumber} no valor de R$ ${parseFloat(ord.total).toFixed(2)} foi confirmado com sucesso pela HouseFit!`,
+        orderId: cleanNumber,
+        userPhone: ord.customerPhone,
+        recipientRole: "user",
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[Supabase] Falha ao atualizar pagamento:", err);
+    return false;
+  }
+}
+
+export async function deleteDbOrder(orderId: string): Promise<boolean> {
+  try {
+    const cleanNumber = orderId.replace("#", "");
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .eq("orderNumber", cleanNumber);
+
+    if (error) {
+      console.error("[Supabase] Erro ao excluir pedido:", error.message);
+      return false;
+    }
+
+    // Excluir notificações associadas ao pedido
+    try {
+      await supabase.from("notifications").delete().eq("orderId", cleanNumber);
+    } catch {
+      // ignore
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[Supabase] Falha ao excluir pedido:", err);
     return false;
   }
 }
@@ -206,17 +324,37 @@ export async function updateDbOrderStatus(orderId: string, status: OrderStatus):
 // ----------------------------------------------------
 export async function fetchDbCustomers(): Promise<Customer[]> {
   try {
-    const { data, error } = await supabase
+    // 1. Buscar clientes registrados na tabela customers
+    const { data: custData, error: custError } = await supabase
       .from("customers")
       .select("*")
       .order("totalOrders", { ascending: false });
 
-    if (error || !data) {
-      if (error) console.warn("[Supabase] Erro ao buscar clientes:", error.message);
-      return [];
-    }
+    // 2. Buscar usuários registrados na tabela users
+    const { data: userData } = await supabase
+      .from("users")
+      .select("*");
 
-    return data.map((c) => {
+    const usersMapByPhone = new Map<string, any>();
+    const usersMapByEmail = new Map<string, any>();
+
+    (userData || []).forEach((u) => {
+      const cleanPhone = (u.phone || "").replace(/\D/g, "");
+      if (cleanPhone) usersMapByPhone.set(cleanPhone, u);
+      if (u.email) usersMapByEmail.set(u.email.toLowerCase().trim(), u);
+    });
+
+    const customersList: Customer[] = [];
+    const seenPhones = new Set<string>();
+
+    (custData || []).forEach((c) => {
+      const cleanPhone = (c.phone || "").replace(/\D/g, "");
+      if (cleanPhone) seenPhones.add(cleanPhone);
+
+      const matchedUser =
+        (cleanPhone ? usersMapByPhone.get(cleanPhone) : null) ||
+        (c.email ? usersMapByEmail.get(c.email.toLowerCase().trim()) : null);
+
       const initials = (c.name || "CL")
         .split(" ")
         .slice(0, 2)
@@ -224,20 +362,118 @@ export async function fetchDbCustomers(): Promise<Customer[]> {
         .join("")
         .toUpperCase();
 
-      return {
+      customersList.push({
         id: `c${c.id}`,
         name: c.name,
-        phone: c.phone || "",
+        phone: c.phone || matchedUser?.phone || "",
+        email: c.email || matchedUser?.email || undefined,
+        password: c.password || matchedUser?.password || undefined,
+        role: c.role || matchedUser?.role || "user",
         initials,
         orders: c.totalOrders ?? 0,
         spent: parseFloat(c.totalSpent) || 0,
         lastOrder: c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString("pt-BR") : "Recente",
         favorite: c.favorite || "Panqueca de frango",
-      };
+      });
     });
+
+    // 3. Incluir usuários que criaram conta mas ainda não têm registro em customers
+    (userData || []).forEach((u) => {
+      const cleanPhone = (u.phone || "").replace(/\D/g, "");
+      if (cleanPhone && seenPhones.has(cleanPhone)) return;
+
+      const initials = (u.name || "CL")
+        .split(" ")
+        .slice(0, 2)
+        .map((w: string) => w[0])
+        .join("")
+        .toUpperCase();
+
+      customersList.push({
+        id: `u${u.id}`,
+        name: u.name || "Cliente",
+        phone: u.phone || "",
+        email: u.email || undefined,
+        password: u.password || undefined,
+        role: (u.role as "user" | "admin") || "user",
+        initials,
+        orders: 0,
+        spent: 0,
+        lastOrder: "Sem pedidos",
+        favorite: "—",
+      });
+    });
+
+    return customersList;
   } catch (err) {
     console.error("[Supabase] Falha ao buscar clientes:", err);
     return [];
+  }
+}
+
+export async function updateDbCustomerProfile(
+  customerId: string,
+  updates: { name: string; phone: string; email?: string; password?: string }
+): Promise<boolean> {
+  try {
+    const isUserOnly = customerId.startsWith("u");
+    const numId = parseInt(customerId.replace(/^[cu]/, ""), 10);
+    const cleanPhone = updates.phone.replace(/\D/g, "");
+    const cleanEmail = updates.email ? updates.email.toLowerCase().trim() : "";
+
+    const customerPayload: any = {
+      name: updates.name.trim(),
+      phone: updates.phone.trim(),
+      email: cleanEmail || null,
+    };
+    if (updates.password) {
+      customerPayload.password = updates.password;
+    }
+
+    if (!isUserOnly && !isNaN(numId)) {
+      await supabase.from("customers").update(customerPayload).eq("id", numId);
+    } else {
+      // Tentar atualizar por telefone na tabela customers
+      await supabase.from("customers").update(customerPayload).eq("phone", updates.phone.trim());
+    }
+
+    // Atualizar também na tabela users para sincronia total do login
+    const { data: usersList } = await supabase.from("users").select("id, phone, email");
+    let matchedUser = usersList?.find((u) => {
+      const uPhone = (u.phone || "").replace(/\D/g, "");
+      const uEmail = (u.email || "").toLowerCase().trim();
+      return (
+        (isUserOnly && u.id === numId) ||
+        (cleanPhone && (uPhone === cleanPhone || uPhone.endsWith(cleanPhone) || cleanPhone.endsWith(uPhone))) ||
+        (cleanEmail && uEmail === cleanEmail)
+      );
+    });
+
+    if (matchedUser) {
+      const userPayload: any = {
+        name: updates.name.trim(),
+        phone: updates.phone.trim(),
+      };
+      if (cleanEmail) userPayload.email = cleanEmail;
+      if (updates.password) userPayload.password = updates.password;
+      await supabase.from("users").update(userPayload).eq("id", matchedUser.id);
+    } else if (cleanEmail && updates.password) {
+      // Se não existia usuário com login, cria um para permitir autenticação com as credenciais
+      await supabase.from("users").insert({
+        openId: `user-${Date.now()}`,
+        name: updates.name.trim(),
+        email: cleanEmail,
+        phone: updates.phone.trim(),
+        password: updates.password,
+        role: "user",
+        loginMethod: "password",
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[Supabase] Falha ao atualizar perfil do cliente:", err);
+    return false;
   }
 }
 
@@ -455,4 +691,131 @@ export async function updateDbUser(
     return false;
   }
 }
+
+// ----------------------------------------------------
+// NOTIFICAÇÕES (NOTIFICATIONS)
+// ----------------------------------------------------
+export interface DbNotification {
+  id: number;
+  userId?: number;
+  userEmail?: string;
+  userPhone?: string;
+  orderId?: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  recipientRole: "admin" | "user";
+  createdAt: string;
+}
+
+export async function fetchDbNotifications(role: "admin" | "user", userPhoneOrEmail?: string): Promise<DbNotification[]> {
+  try {
+    let query = supabase
+      .from("notifications")
+      .select("*")
+      .eq("recipientRole", role)
+      .order("createdAt", { ascending: false });
+
+    if (role === "user" && userPhoneOrEmail) {
+      const clean = userPhoneOrEmail.replace(/\D/g, "");
+      if (clean) {
+        query = query.or(`userPhone.ilike.%${clean}%,userEmail.ilike.%${userPhoneOrEmail}%`);
+      } else {
+        query = query.ilike("userEmail", `%${userPhoneOrEmail}%`);
+      }
+    }
+
+    const { data, error } = await query.limit(40);
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map((n) => ({
+      id: n.id,
+      userId: n.userId,
+      userEmail: n.userEmail,
+      userPhone: n.userPhone,
+      orderId: n.orderId,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      read: Boolean(n.read),
+      recipientRole: n.recipientRole as "admin" | "user",
+      createdAt: n.createdAt,
+    }));
+  } catch (err) {
+    console.warn("[Supabase] Erro ao buscar notificações:", err);
+    return [];
+  }
+}
+
+export async function createDbNotification(notif: {
+  type: string;
+  title: string;
+  message: string;
+  orderId?: string;
+  userPhone?: string;
+  userEmail?: string;
+  recipientRole?: "admin" | "user";
+}): Promise<boolean> {
+  try {
+    const payload = {
+      type: notif.type,
+      title: notif.title,
+      message: notif.message,
+      orderId: notif.orderId || null,
+      userPhone: notif.userPhone || null,
+      userEmail: notif.userEmail || null,
+      recipientRole: notif.recipientRole || "user",
+      read: false,
+    };
+
+    const { error } = await supabase.from("notifications").insert(payload);
+    if (error) {
+      console.warn("[Supabase] Erro ao criar notificação:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Supabase] Falha ao criar notificação:", err);
+    return false;
+  }
+}
+
+export async function markNotificationAsRead(id: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function markAllNotificationsAsRead(role: "admin" | "user", userPhoneOrEmail?: string): Promise<boolean> {
+  try {
+    let query = supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("recipientRole", role);
+
+    if (role === "user" && userPhoneOrEmail) {
+      const clean = userPhoneOrEmail.replace(/\D/g, "");
+      if (clean) {
+        query = query.or(`userPhone.ilike.%${clean}%,userEmail.ilike.%${userPhoneOrEmail}%`);
+      } else {
+        query = query.ilike("userEmail", `%${userPhoneOrEmail}%`);
+      }
+    }
+
+    const { error } = await query;
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 

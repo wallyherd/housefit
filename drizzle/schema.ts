@@ -50,6 +50,8 @@ export const customers = pgTable("customers", {
   name: varchar("name", { length: 160 }).notNull(),
   phone: varchar("phone", { length: 40 }),
   email: varchar("email", { length: 320 }),
+  password: text("password"),
+  role: varchar("role", { length: 20 }).default("user"),
   totalOrders: integer("totalOrders").default(0).notNull(),
   totalSpent: numeric("totalSpent", { precision: 12, scale: 2 }).default("0").notNull(),
   favorite: varchar("favorite", { length: 180 }),
@@ -76,8 +78,24 @@ export const orders = pgTable("orders", {
   deliveryCity: varchar("deliveryCity", { length: 100 }),
   deliveryAddress: text("deliveryAddress"),
   total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+  isPaid: boolean("isPaid").default(false).notNull(),
+  paidAt: timestamp("paidAt", { withTimezone: true }),
   createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId"),
+  userEmail: varchar("userEmail", { length: 320 }),
+  userPhone: varchar("userPhone", { length: 40 }),
+  orderId: varchar("orderId", { length: 60 }),
+  type: varchar("type", { length: 40 }).notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false).notNull(),
+  recipientRole: varchar("recipientRole", { length: 20 }).default("user").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const orderItems = pgTable("orderItems", {

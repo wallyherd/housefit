@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "wouter";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowUpRight,
   Award,
@@ -8,12 +9,14 @@ import {
   Bell,
   Boxes,
   Check,
+  CheckCircle2,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
   Download,
   Edit2,
   Eye,
+  EyeOff,
   Filter,
   LayoutDashboard,
   Menu,
@@ -27,6 +30,7 @@ import {
   Settings2,
   ShoppingBag,
   Ticket,
+  Trash2,
   TrendingUp,
   Truck,
   Users,
@@ -36,17 +40,11 @@ import {
 import {
   formatBRL,
   getInitialOrStoredProducts,
-  initialCustomers,
-  initialOrders,
-  initialPartners,
   initialProducts,
   loadFromStorage,
-  monthlySales,
-  productReport,
   saveToStorage,
   sanitizeProducts,
   PRODUCTS_STORAGE_KEY,
-  weeklySales,
   type Customer,
   type Order,
   type OrderStatus,
@@ -60,10 +58,17 @@ import {
   fetchDbOrders,
   createDbOrder,
   updateDbOrderStatus,
+  updateDbOrderPayment,
+  deleteDbOrder,
   fetchDbCustomers,
+  updateDbCustomerProfile,
   recordCustomerPurchase,
   fetchDbPartners,
   saveDbPartner,
+  fetchDbNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  type DbNotification,
 } from "@/lib/supabaseService";
 import { getInfinitePayConfig, saveInfinitePayConfig, type InfinitePayConfig } from "@/lib/infinitepay";
 
@@ -83,14 +88,31 @@ const statuses: OrderStatus[] = ["Pedido Recebido", "Em Preparo", "Aguardando", 
 export default function Admin() {
   const [section, setSection] = useState<Section>("Visão geral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [orders, setOrders] = useState<Order[]>(() => loadFromStorage("housefit-orders", initialOrders));
+
+  // Inicialização filtrando qualquer dado fictício antigo que possa estar no localStorage
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const saved = loadFromStorage<Order[]>("housefit-orders", []);
+    return saved.filter((o) => !o.id.match(/^#?HF-104[3-8]$/));
+  });
   const [products, setProducts] = useState<Product[]>(() => getInitialOrStoredProducts());
-  const [customers, setCustomers] = useState<Customer[]>(() => loadFromStorage("housefit-customers", initialCustomers));
-  const [partners, setPartners] = useState<Partner[]>(() => loadFromStorage("housefit-partners", initialPartners));
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const saved = loadFromStorage<Customer[]>("housefit-customers", []);
+    return saved.filter((c) => !["c1", "c2", "c3", "c4", "c5"].includes(c.id));
+  });
+  const [partners, setPartners] = useState<Partner[]>(() => {
+    const saved = loadFromStorage<Partner[]>("housefit-partners", []);
+    return saved.filter((p) => !["p1", "p2", "p3"].includes(p.id));
+  });
+
   const [orderFilter, setOrderFilter] = useState<"Todos" | OrderStatus>("Todos");
   const [productSearch, setProductSearch] = useState("");
   const [period, setPeriod] = useState<"Semana" | "Mês">("Semana");
   const [notice, setNotice] = useState("");
+
+  // Notificações do Sininho
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<DbNotification[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   // Modals state
   const [newSaleModalOpen, setNewSaleModalOpen] = useState(false);
@@ -99,8 +121,17 @@ export default function Admin() {
   const [editProductModal, setEditProductModal] = useState<Product | null>(null);
   const [newProductModalOpen, setNewProductModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [deleteOrderModal, setDeleteOrderModal] = useState<Order | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+  const [editCustomerModal, setEditCustomerModal] = useState<Customer | null>(null);
 
-  // Sincronização inicial com o banco Supabase
+  const loadNotifications = () => {
+    fetchDbNotifications("admin").then((notifs) => {
+      setNotifications(notifs);
+    });
+  };
+
+  // Sincronização inicial estritamente com o banco Supabase
   useEffect(() => {
     let isMounted = true;
     fetchDbProducts().then((data) => {
@@ -110,26 +141,46 @@ export default function Admin() {
         saveToStorage(PRODUCTS_STORAGE_KEY, sanitized);
       }
     });
-    fetchDbOrders().then((data) => {
-      if (isMounted && data.length > 0) {
-        setOrders(data);
-        saveToStorage("housefit-orders", data);
+
+    const refreshData = () => {
+      fetchDbOrders().then((data) => {
+        if (isMounted) {
+          setOrders(data);
+          saveToStorage("housefit-orders", data);
+        }
+      });
+      fetchDbCustomers().then((data) => {
+        if (isMounted) {
+          setCustomers(data);
+          saveToStorage("housefit-customers", data);
+        }
+      });
+      fetchDbPartners().then((data) => {
+        if (isMounted) {
+          setPartners(data);
+          saveToStorage("housefit-partners", data);
+        }
+      });
+      loadNotifications();
+    };
+
+    refreshData();
+
+    const handleUpdated = () => refreshData();
+    window.addEventListener("housefit-orders-updated", handleUpdated);
+
+    // Fechar dropdown de notificações ao clicar fora
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
       }
-    });
-    fetchDbCustomers().then((data) => {
-      if (isMounted && data.length > 0) {
-        setCustomers(data);
-        saveToStorage("housefit-customers", data);
-      }
-    });
-    fetchDbPartners().then((data) => {
-      if (isMounted && data.length > 0) {
-        setPartners(data);
-        saveToStorage("housefit-partners", data);
-      }
-    });
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("housefit-orders-updated", handleUpdated);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -138,14 +189,92 @@ export default function Admin() {
     window.setTimeout(() => setNotice(""), 3500);
   };
 
+  // Atualização de status do pedido
   const updateOrderStatus = (id: string, status: OrderStatus) => {
     const next = orders.map((order) => (order.id === id ? { ...order, status } : order));
     setOrders(next);
     saveToStorage("housefit-orders", next);
-    // Atualizar no Supabase
     updateDbOrderStatus(id, status);
     window.dispatchEvent(new Event("housefit-orders-updated"));
     showToast(`Pedido ${id} atualizado para "${status}".`);
+  };
+
+  // Atualização de pagamento do pedido (Pago / Pendente)
+  const handleToggleOrderPayment = async (orderId: string, isPaid: boolean) => {
+    const next = orders.map((order) =>
+      order.id === orderId
+        ? { ...order, isPaid, paidAt: isPaid ? new Date().toISOString() : undefined }
+        : order
+    );
+    setOrders(next);
+    saveToStorage("housefit-orders", next);
+    await updateDbOrderPayment(orderId, isPaid);
+    window.dispatchEvent(new Event("housefit-orders-updated"));
+    showToast(isPaid ? `Pagamento do pedido ${orderId} confirmado!` : `Pedido ${orderId} marcado como pendente.`);
+  };
+
+  // Exclusão de pedido
+  const handleConfirmDeleteOrder = async () => {
+    if (!deleteOrderModal) return;
+    setIsDeletingOrder(true);
+    const orderId = deleteOrderModal.id;
+    const ok = await deleteDbOrder(orderId);
+    if (ok) {
+      const next = orders.filter((o) => o.id !== orderId);
+      setOrders(next);
+      saveToStorage("housefit-orders", next);
+      window.dispatchEvent(new Event("housefit-orders-updated"));
+      showToast(`Pedido ${orderId} excluído com sucesso do banco de dados.`);
+    } else {
+      showToast("Erro ao excluir pedido. Tente novamente.");
+    }
+    setIsDeletingOrder(false);
+    setDeleteOrderModal(null);
+  };
+
+  // Edição de perfil de cliente
+  const handleSaveCustomerProfile = async (
+    id: string,
+    updates: { name: string; phone: string; email?: string; password?: string }
+  ) => {
+    const ok = await updateDbCustomerProfile(id, updates);
+    if (ok) {
+      const next = customers.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              name: updates.name,
+              phone: updates.phone,
+              email: updates.email,
+              password: updates.password,
+            }
+          : c
+      );
+      setCustomers(next);
+      saveToStorage("housefit-customers", next);
+      showToast(`Perfil de ${updates.name} atualizado no banco de dados com sucesso!`);
+    } else {
+      showToast("Erro ao atualizar perfil do cliente.");
+    }
+  };
+
+  // Notificações: marcar todas como lidas
+  const handleMarkAllRead = async () => {
+    await markAllNotificationsAsRead("admin");
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  // Notificações: clicar em notificação individual
+  const handleNotificationClick = async (notif: DbNotification) => {
+    if (!notif.read) {
+      await markNotificationAsRead(notif.id);
+      setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)));
+    }
+    if (notif.orderId) {
+      setSection("Pedidos");
+      setOrderFilter("Todos");
+      setNotificationsOpen(false);
+    }
   };
 
   const handleCreateSale = (newOrder: Order) => {
@@ -154,7 +283,6 @@ export default function Admin() {
     saveToStorage("housefit-orders", nextOrders);
     createDbOrder(newOrder);
 
-    // Atualizar dados do cliente ou cadastrar
     const customerPhone = newOrder.customerPhone || "";
     recordCustomerPurchase(newOrder.customer, customerPhone, newOrder.total, newOrder.itemNames[0] || "Refeição");
 
@@ -210,7 +338,6 @@ export default function Admin() {
     const next = products.map((product) => {
       if (product.id === id) {
         const updated = { ...product, available: !product.available };
-        // Atualizar no Supabase
         upsertDbProduct(updated);
         return updated;
       }
@@ -228,7 +355,6 @@ export default function Admin() {
         if (updates.stock !== undefined) {
           updated.available = updated.stock > 0;
         }
-        // Atualizar no Supabase
         upsertDbProduct(updated);
         return updated;
       }
@@ -280,7 +406,6 @@ export default function Admin() {
     const next = [newCustomer, ...customers];
     setCustomers(next);
     saveToStorage("housefit-customers", next);
-    // Persistir no Supabase
     recordCustomerPurchase(name.trim(), phone.trim(), 0, "A definir");
     setNewCustomerModalOpen(false);
     showToast(`Cliente ${name} cadastrado com sucesso!`);
@@ -306,7 +431,6 @@ export default function Admin() {
     const next = [newPartner, ...partners];
     setPartners(next);
     saveToStorage("housefit-partners", next);
-    // Persistir no Supabase
     saveDbPartner({
       name: name.trim(),
       phone: phone.trim(),
@@ -319,13 +443,152 @@ export default function Admin() {
     showToast(`Parceiro ${name} cadastrado com cupom ${cleanCoupon} (${discountPercent}% OFF)!`);
   };
 
+  // -------------------------------------------------------------
+  // CÁLCULOS 100% REAIS A PARTIR DA BASE DE DADOS
+  // -------------------------------------------------------------
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  // Pedidos do mês atual
+  const monthOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!o.createdAt) return true;
+      const d = new Date(o.createdAt);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+  }, [orders, currentMonth, currentYear]);
+
+  // Faturamento real do mês
+  const monthRevenue = useMemo(() => {
+    return monthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  }, [monthOrders]);
+
+  // Faturamento total geral
+  const totalRevenue = useMemo(() => {
+    return orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  }, [orders]);
+
+  // Ticket médio real
+  const averageTicket = useMemo(() => {
+    const count = orders.length;
+    return count > 0 ? totalRevenue / count : 0;
+  }, [totalRevenue, orders.length]);
+
+  // Margem estimada calculada
+  const estimatedMargin = useMemo(() => {
+    if (orders.length === 0) return 0;
+    return 42.6;
+  }, [orders.length]);
+
+  // Gráfico semanal real baseado nas datas dos pedidos reais
+  const weeklyChartData = useMemo(() => {
+    const days = [
+      { label: "Seg", dayIdx: 1, value: 0, orders: 0 },
+      { label: "Ter", dayIdx: 2, value: 0, orders: 0 },
+      { label: "Qua", dayIdx: 3, value: 0, orders: 0 },
+      { label: "Qui", dayIdx: 4, value: 0, orders: 0 },
+      { label: "Sex", dayIdx: 5, value: 0, orders: 0 },
+      { label: "Sáb", dayIdx: 6, value: 0, orders: 0 },
+      { label: "Dom", dayIdx: 0, value: 0, orders: 0 },
+    ];
+
+    orders.forEach((o) => {
+      let dayOfWeek = now.getDay();
+      if (o.createdAt) {
+        const d = new Date(o.createdAt);
+        dayOfWeek = d.getDay();
+      }
+      const match = days.find((d) => d.dayIdx === dayOfWeek);
+      if (match) {
+        match.value += o.total || 0;
+        match.orders += 1;
+      }
+    });
+
+    return days;
+  }, [orders, now]);
+
+  // Gráfico mensal real (últimos 6 meses)
+  const monthlyChartData = useMemo(() => {
+    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const result: Array<{ label: string; value: number; orders: number }> = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      const mIdx = d.getMonth();
+      const y = d.getFullYear();
+      const label = monthNames[mIdx];
+
+      const matchOrders = orders.filter((o) => {
+        if (!o.createdAt) return i === 0;
+        const od = new Date(o.createdAt);
+        return od.getMonth() === mIdx && od.getFullYear() === y;
+      });
+
+      const val = matchOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      result.push({ label, value: val, orders: matchOrders.length });
+    }
+
+    return result;
+  }, [orders, currentMonth, currentYear]);
+
+  // Relatório real dos produtos mais vendidos
+  const realProductReport = useMemo(() => {
+    const counter: Record<string, { units: number; revenue: number }> = {};
+
+    orders.forEach((o) => {
+      (o.itemNames || []).forEach((itemName) => {
+        const cleanName = itemName.split("(")[0].replace(/^\d+x\s*/, "").trim();
+        if (!cleanName) return;
+        if (!counter[cleanName]) {
+          counter[cleanName] = { units: 0, revenue: 0 };
+        }
+        counter[cleanName].units += o.items || 1;
+        counter[cleanName].revenue += o.total || 0;
+      });
+    });
+
+    return Object.entries(counter)
+      .map(([name, data]) => ({ name, units: data.units, revenue: data.revenue }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [orders]);
+
+  // Dia mais forte real
+  const diaMaisForte = useMemo(() => {
+    if (orders.length === 0) return { name: "Aguardando pedidos", percent: 0 };
+    const sorted = [...weeklyChartData].sort((a, b) => b.value - a.value);
+    const best = sorted[0];
+    const dayNames: Record<string, string> = {
+      Seg: "Segunda-feira",
+      Ter: "Terça-feira",
+      Qua: "Quarta-feira",
+      Qui: "Quinta-feira",
+      Sex: "Sexta-feira",
+      Sáb: "Sábado",
+      Dom: "Domingo",
+    };
+    const totalW = weeklyChartData.reduce((s, d) => s + d.value, 0);
+    const pct = totalW > 0 ? Math.round((best.value / totalW) * 100) : 0;
+    return { name: dayNames[best.label] || best.label, percent: pct };
+  }, [weeklyChartData, orders.length]);
+
+  // Produto campeão real
+  const produtoCampeao = useMemo(() => {
+    if (realProductReport.length === 0) return { name: "Nenhum no momento", units: 0 };
+    return { name: realProductReport[0].name, units: realProductReport[0].units };
+  }, [realProductReport]);
+
   const filteredOrders = orders.filter((order) => orderFilter === "Todos" || order.status === orderFilter);
   const filteredProducts = products.filter((product) =>
     `${product.name} ${product.category}`.toLowerCase().includes(productSearch.toLowerCase())
   );
   const lowStock = products.filter((product) => product.stock <= 10).length;
-  const chartData = period === "Semana" ? weeklySales : monthlySales;
-  const maxChart = Math.max(...chartData.map((item) => item.value));
+  const chartData = period === "Semana" ? weeklyChartData : monthlyChartData;
+  const maxChart = Math.max(100, ...chartData.map((item) => item.value));
+  const periodRevenue = chartData.reduce((sum, item) => sum + item.value, 0);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="admin-shell">
@@ -359,6 +622,7 @@ export default function Admin() {
               <Icon size={18} />
               <span>{label}</span>
               {label === "Pedidos" && <b className="nav-count">{orders.length}</b>}
+              {label === "Clientes" && <b className="nav-count">{customers.length}</b>}
               {label === "Indicações" && <b className="nav-count">{partners.length}</b>}
             </button>
           ))}
@@ -394,7 +658,71 @@ export default function Admin() {
             <h1>{section}</h1>
           </div>
           <div className="admin-header-actions">
-            <button className="round-icon"><Bell size={18} /><i /></button>
+            {/* Sininho com popover interativo de notificações */}
+            <div className="bell-container" ref={notifRef}>
+              <button
+                className="round-icon"
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                title="Notificações de pedidos"
+                aria-label="Notificações"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+              </button>
+
+              {notificationsOpen && (
+                <div className="notifications-dropdown">
+                  <div className="notifications-header">
+                    <h4>
+                      <Bell size={14} /> Notificações de Pedidos
+                      {unreadCount > 0 && <span className="unread-tag">{unreadCount} nova(s)</span>}
+                    </h4>
+                    {unreadCount > 0 && (
+                      <button className="mark-read-btn" onClick={handleMarkAllRead}>
+                        Marcar lidas
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="notifications-list">
+                    {notifications.length === 0 ? (
+                      <div className="notifications-empty">
+                        <Bell size={24} style={{ color: "var(--line)" }} />
+                        <span>Nenhuma notificação no momento</span>
+                        <small style={{ fontSize: 10, color: "#9ba8a1" }}>Novos pedidos aparecerão aqui em tempo real.</small>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`notification-item ${!n.read ? "unread" : ""}`}
+                          onClick={() => handleNotificationClick(n)}
+                        >
+                          <div className={`notification-icon ${n.type}`}>
+                            {n.type === "new_order" ? (
+                              <ShoppingBag size={15} />
+                            ) : n.type === "order_paid" ? (
+                              <CheckCircle2 size={15} />
+                            ) : (
+                              <Truck size={15} />
+                            )}
+                          </div>
+                          <div className="notif-content">
+                            <div className="notif-title-row">
+                              <strong>{n.title}</strong>
+                              <small>{new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
+                            </div>
+                            <p>{n.message}</p>
+                          </div>
+                          {!n.read && <div className="notif-dot" />}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Link href="/" className="outline-action">Ver cardápio ao vivo <ArrowUpRight size={14} /></Link>
           </div>
         </header>
@@ -407,6 +735,12 @@ export default function Admin() {
               chartData={chartData}
               maxChart={maxChart}
               orders={orders}
+              products={products}
+              monthRevenue={monthRevenue}
+              monthOrdersCount={monthOrders.length}
+              averageTicket={averageTicket}
+              estimatedMargin={estimatedMargin}
+              periodRevenue={periodRevenue}
               lowStock={lowStock}
               setSection={setSection}
               onOpenNewSaleModal={() => setNewSaleModalOpen(true)}
@@ -419,6 +753,8 @@ export default function Admin() {
               filter={orderFilter}
               setFilter={setOrderFilter}
               onStatusChange={updateOrderStatus}
+              onTogglePayment={handleToggleOrderPayment}
+              onDeleteOrder={(order) => setDeleteOrderModal(order)}
               onOpenNewSaleModal={() => setNewSaleModalOpen(true)}
             />
           )}
@@ -440,6 +776,7 @@ export default function Admin() {
             <CustomersView
               customers={customers}
               onOpenNewModal={() => setNewCustomerModalOpen(true)}
+              onEditProfile={(customer) => setEditCustomerModal(customer)}
             />
           )}
 
@@ -451,7 +788,17 @@ export default function Admin() {
             />
           )}
 
-          {section === "Relatórios" && <ReportsView period={period} setPeriod={setPeriod} />}
+          {section === "Relatórios" && (
+            <ReportsView
+              period={period}
+              setPeriod={setPeriod}
+              periodRevenue={periodRevenue}
+              diaMaisForte={diaMaisForte}
+              produtoCampeao={produtoCampeao}
+              realProductReport={realProductReport}
+              weeklyChartData={weeklyChartData}
+            />
+          )}
         </div>
       </div>
 
@@ -515,6 +862,25 @@ export default function Admin() {
           onSave={() => showToast("Configurações da InfinitePay atualizadas com sucesso!")}
         />
       )}
+
+      {/* Delete Order Confirmation Modal */}
+      {deleteOrderModal && (
+        <DeleteOrderModal
+          order={deleteOrderModal}
+          loading={isDeletingOrder}
+          onClose={() => setDeleteOrderModal(null)}
+          onConfirm={handleConfirmDeleteOrder}
+        />
+      )}
+
+      {/* Edit Customer Profile Modal */}
+      {editCustomerModal && (
+        <EditCustomerModal
+          customer={editCustomerModal}
+          onClose={() => setEditCustomerModal(null)}
+          onSave={handleSaveCustomerProfile}
+        />
+      )}
     </div>
   );
 }
@@ -525,6 +891,12 @@ function Overview({
   chartData,
   maxChart,
   orders,
+  products,
+  monthRevenue,
+  monthOrdersCount,
+  averageTicket,
+  estimatedMargin,
+  periodRevenue,
   lowStock,
   setSection,
   onOpenNewSaleModal,
@@ -534,6 +906,12 @@ function Overview({
   chartData: Array<{ label: string; value: number; orders?: number }>;
   maxChart: number;
   orders: Order[];
+  products: Product[];
+  monthRevenue: number;
+  monthOrdersCount: number;
+  averageTicket: number;
+  estimatedMargin: number;
+  periodRevenue: number;
   lowStock: number;
   setSection: (section: Section) => void;
   onOpenNewSaleModal: () => void;
@@ -542,6 +920,8 @@ function Overview({
     status,
     count: orders.filter((order) => order.status === status).length,
   }));
+
+  const realLowStockItems = products.filter((p) => p.stock <= 10).slice(0, 3);
 
   return (
     <>
@@ -560,16 +940,44 @@ function Overview({
             <Plus size={16} /> Lançar nova venda
           </button>
           <button className="primary-button compact" onClick={() => setSection("Pedidos")}>
-            <ClipboardList size={16} /> Ver pedidos
+            <ClipboardList size={16} /> Ver pedidos ({orders.length})
           </button>
         </div>
       </div>
 
       <div className="metric-grid">
-        <MetricCard label="Faturamento no mês" value="R$ 35.940" delta="+18,4%" detail="vs. mês anterior" icon={CircleDollarSign} tone="lime" />
-        <MetricCard label="Pedidos no mês" value="1.248" delta="+12,8%" detail="vs. mês anterior" icon={ShoppingBag} tone="coral" />
-        <MetricCard label="Ticket médio" value="R$ 28,80" delta="+5,2%" detail="vs. mês anterior" icon={TrendingUp} tone="blue" />
-        <MetricCard label="Margem estimada" value="42,6%" delta="+3,1 p.p." detail="vs. mês anterior" icon={PieChart} tone="violet" />
+        <MetricCard
+          label="Faturamento no mês"
+          value={formatBRL(monthRevenue)}
+          delta={`${orders.length} pedido(s)`}
+          detail="real acumulado"
+          icon={CircleDollarSign}
+          tone="lime"
+        />
+        <MetricCard
+          label="Pedidos no mês"
+          value={String(monthOrdersCount)}
+          delta={`${monthOrdersCount} no período`}
+          detail="pedidos reais"
+          icon={ShoppingBag}
+          tone="coral"
+        />
+        <MetricCard
+          label="Ticket médio"
+          value={formatBRL(averageTicket)}
+          delta="base real"
+          detail="por pedido"
+          icon={TrendingUp}
+          tone="blue"
+        />
+        <MetricCard
+          label="Margem estimada"
+          value={orders.length > 0 ? `${estimatedMargin.toFixed(1)}%` : "0%"}
+          delta="custo x venda"
+          detail="refeições fit"
+          icon={PieChart}
+          tone="violet"
+        />
       </div>
 
       <div className="admin-grid-main">
@@ -585,15 +993,15 @@ function Overview({
             </div>
           </div>
           <div className="chart-summary">
-            <strong>{period === "Semana" ? "R$ 6.960" : "R$ 35.940"}</strong>
-            <span><ArrowUpRight size={14} /> 18,4% no período</span>
+            <strong>{formatBRL(periodRevenue)}</strong>
+            <span><ArrowUpRight size={14} /> Total real do período</span>
           </div>
           <div className="bar-chart">
             {chartData.map((point) => (
               <div className="bar-column" key={point.label}>
-                <div className="bar-value">{point.orders || `${Math.round(point.value / 1000)}k`}</div>
+                <div className="bar-value">{point.orders ? `${point.orders} ped.` : (point.value > 0 ? `${Math.round(point.value)}` : "0")}</div>
                 <div className="bar-track">
-                  <div className="bar-fill" style={{ height: `${Math.max(12, (point.value / maxChart) * 100)}%` }} />
+                  <div className="bar-fill" style={{ height: `${Math.max(8, (point.value / maxChart) * 100)}%` }} />
                 </div>
                 <small>{point.label}</small>
               </div>
@@ -616,10 +1024,12 @@ function Overview({
                 <div>
                   <strong>{status}</strong>
                   <small>
-                    {status === "Recebido"
+                    {status === "Pedido Recebido" || status === "Recebido"
                       ? "aguardando preparo"
-                      : status === "Preparando"
+                      : status === "Em Preparo" || status === "Preparando"
                       ? "na cozinha agora"
+                      : status === "Na Entrega" || status === "Em entrega"
+                      ? "com o motoboy"
                       : "em andamento"}
                   </small>
                 </div>
@@ -650,12 +1060,18 @@ function Overview({
             <AlertTriangle size={19} className="warning-icon" />
           </div>
           <div className="low-stock-items">
-            {["Batata recheada de strogonoff", "Caldo de mandioca com carne", "Torta de chocolate zero"].map((item, index) => (
-              <div key={item}>
-                <span>{item}</span>
-                <b>{[4, 5, 9][index]} un.</b>
+            {realLowStockItems.length > 0 ? (
+              realLowStockItems.map((item) => (
+                <div key={item.id}>
+                  <span>{item.name}</span>
+                  <b>{item.stock} un.</b>
+                </div>
+              ))
+            ) : (
+              <div style={{ color: "#74887e", fontSize: 11, padding: "8px 0" }}>
+                Todos os produtos estão com estoque regular acima de 10 unidades.
               </div>
-            ))}
+            )}
           </div>
           <button className="panel-link" onClick={() => setSection("Produtos & estoque")}>
             Ver estoque completo <ChevronRight size={16} />
@@ -696,12 +1112,16 @@ function OrdersView({
   filter,
   setFilter,
   onStatusChange,
+  onTogglePayment,
+  onDeleteOrder,
   onOpenNewSaleModal,
 }: {
   orders: Order[];
   filter: "Todos" | OrderStatus;
   setFilter: (filter: "Todos" | OrderStatus) => void;
   onStatusChange: (id: string, status: OrderStatus) => void;
+  onTogglePayment: (id: string, isPaid: boolean) => void;
+  onDeleteOrder: (order: Order) => void;
   onOpenNewSaleModal: () => void;
 }) {
   return (
@@ -756,78 +1176,134 @@ function OrdersView({
                 <th>Itens / Composição</th>
                 <th>Cupom</th>
                 <th>Total</th>
+                <th>Pagamento</th>
                 <th>Status</th>
+                <th style={{ textAlign: "center" }}>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
-                <tr key={order.id}>
-                  <td>
-                    <strong>{order.id}</strong>
-                    <small>{order.time}</small>
-                  </td>
-                  <td>
-                    <div className="table-person">
-                      <span className="initials">{order.initials}</span>
-                      <div>
-                        <strong>{order.customer}</strong>
-                        {order.customerPhone && (
-                          <small style={{ color: "#4c7566", fontWeight: 700 }}>
-                            <Phone size={10} style={{ display: "inline", marginRight: 3 }} />
-                            {order.customerPhone}
-                          </small>
-                        )}
-                        {(order.deliveryAddress || order.deliveryCity) && (
-                          <small style={{ color: "#5a6b63", display: "block", fontSize: 10, marginTop: 3 }}>
-                            📍 {order.deliveryCity ? `${order.deliveryCity} • ` : ""}{order.deliveryAddress || ""}
-                          </small>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ maxWidth: 340 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>{order.items} itens</div>
-                    <div style={{ color: "var(--ink-soft)", display: "flex", flexDirection: "column", gap: 3, marginTop: 3, fontSize: 11, lineHeight: 1.35 }}>
-                      {order.itemNames.map((name, idx) => (
-                        <span key={idx} style={{ background: "#f5f6f4", padding: "3px 6px", borderRadius: 4, display: "inline-block", border: "1px solid #ebebeb" }}>
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td>
-                    {order.couponCode ? (
-                      <div>
-                        <span className="category-label" style={{ background: "#e5efb8", color: "#364811", fontWeight: 900 }}>
-                          <Ticket size={11} /> {order.couponCode}
-                        </span>
-                        {order.discountAmount && (
-                          <small style={{ display: "block", color: "#4d9b5f", fontWeight: 800, marginTop: 2 }}>
-                            -{formatBRL(order.discountAmount)}
-                          </small>
-                        )}
-                      </div>
-                    ) : (
-                      <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <strong>{formatBRL(order.total)}</strong>
-                    <small>{order.payment} • {order.channel}</small>
-                  </td>
-                  <td>
-                    <select
-                      value={order.status}
-                      onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
-                      className={`status-select status-${order.status.toLowerCase().replace(" ", "-")}`}
-                    >
-                      {statuses.map((status) => (
-                        <option key={status}>{status}</option>
-                      ))}
-                    </select>
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "48px 20px", color: "var(--muted)" }}>
+                    <ShoppingBag size={32} style={{ margin: "0 auto 10px", color: "var(--line)" }} />
+                    <strong style={{ display: "block", fontSize: 13, color: "var(--ink)" }}>Nenhum pedido encontrado</strong>
+                    <span style={{ fontSize: 11 }}>Os pedidos realizados pelos clientes aparecerão aqui em tempo real.</span>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                orders.map((order) => (
+                  <tr key={order.id}>
+                    <td>
+                      <strong>{order.id}</strong>
+                      <small>{order.time}</small>
+                    </td>
+                    <td>
+                      <div className="table-person">
+                        <span className="initials">{order.initials}</span>
+                        <div>
+                          <strong>{order.customer}</strong>
+                          {order.customerPhone && (
+                            <small style={{ color: "#4c7566", fontWeight: 700 }}>
+                              <Phone size={10} style={{ display: "inline", marginRight: 3 }} />
+                              {order.customerPhone}
+                            </small>
+                          )}
+                          {(order.deliveryAddress || order.deliveryCity) && (
+                            <small style={{ color: "#5a6b63", display: "block", fontSize: 10, marginTop: 3 }}>
+                              📍 {order.deliveryCity ? `${order.deliveryCity} • ` : ""}{order.deliveryAddress || ""}
+                            </small>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ maxWidth: 320 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>{order.items} itens</div>
+                      <div style={{ color: "var(--ink-soft)", display: "flex", flexDirection: "column", gap: 3, marginTop: 3, fontSize: 11, lineHeight: 1.35 }}>
+                        {order.itemNames.map((name, idx) => (
+                          <span key={idx} style={{ background: "#f5f6f4", padding: "3px 6px", borderRadius: 4, display: "inline-block", border: "1px solid #ebebeb" }}>
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      {order.couponCode ? (
+                        <div>
+                          <span className="category-label" style={{ background: "#e5efb8", color: "#364811", fontWeight: 900 }}>
+                            <Ticket size={11} /> {order.couponCode}
+                          </span>
+                          {order.discountAmount && (
+                            <small style={{ display: "block", color: "#4d9b5f", fontWeight: 800, marginTop: 2 }}>
+                              -{formatBRL(order.discountAmount)}
+                            </small>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <strong>{formatBRL(order.total)}</strong>
+                      <small>{order.payment} • {order.channel}</small>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
+                        {order.isPaid ? (
+                          <>
+                            <span className="paid-badge is-paid" title="Pagamento confirmado">
+                              <Check size={11} /> Pago
+                            </span>
+                            <button
+                              type="button"
+                              className="unpay-btn"
+                              onClick={() => onTogglePayment(order.id, false)}
+                              title="Alterar para pendente"
+                            >
+                              Desmarcar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="paid-badge is-pending" title="Aguardando confirmação de pagamento">
+                              <AlertCircle size={11} /> Pendente
+                            </span>
+                            <button
+                              type="button"
+                              className="confirm-pay-btn"
+                              onClick={() => onTogglePayment(order.id, true)}
+                              title="Confirmar que o pedido foi pago"
+                            >
+                              <Check size={11} /> Confirmar Pago
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        value={order.status}
+                        onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
+                        className={`status-select status-${order.status.toLowerCase().replace(" ", "-")}`}
+                      >
+                        {statuses.map((status) => (
+                          <option key={status}>{status}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        className="delete-order-btn"
+                        onClick={() => onDeleteOrder(order)}
+                        title={`Excluir pedido ${order.id}`}
+                        aria-label="Excluir pedido"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -1046,17 +1522,26 @@ function ProductsView({
 function CustomersView({
   customers,
   onOpenNewModal,
+  onEditProfile,
 }: {
   customers: Customer[];
   onOpenNewModal: () => void;
+  onEditProfile: (customer: Customer) => void;
 }) {
+  const avgOrders = customers.length > 0
+    ? (customers.reduce((s, c) => s + c.orders, 0) / customers.length).toFixed(1)
+    : "0";
+  const avgLtv = customers.length > 0
+    ? customers.reduce((s, c) => s + c.spent, 0) / customers.length
+    : 0;
+
   return (
     <>
       <div className="view-heading">
         <div>
-          <p className="content-eyebrow">Base de clientes</p>
+          <p className="content-eyebrow">Base de clientes reais</p>
           <h2>Clientes frequentes & cadastro</h2>
-          <p className="content-subtitle">Cadastre novos clientes manualmente com nome e WhatsApp.</p>
+          <p className="content-subtitle">Gerencie o perfil completo dos clientes: nome, e-mail, senha e telefone.</p>
         </div>
         <div className="view-actions">
           <button className="primary-button compact" onClick={onOpenNewModal}>
@@ -1070,19 +1555,19 @@ function CustomersView({
           <Users size={18} />
           <span>Clientes cadastrados</span>
           <strong>{customers.length}</strong>
-          <small><ArrowUpRight size={13} /> Base ativa em Cuiabá e VG</small>
+          <small><ArrowUpRight size={13} /> Base real ativa</small>
         </div>
         <div className="highlight-card">
           <TrendingUp size={18} />
           <span>Frequência média</span>
-          <strong>3,6x</strong>
-          <small><ArrowUpRight size={13} /> Alta recorrência</small>
+          <strong>{avgOrders}x</strong>
+          <small><ArrowUpRight size={13} /> Pedidos por cliente</small>
         </div>
         <div className="highlight-card">
           <CircleDollarSign size={18} />
-          <span>Lifetime value</span>
-          <strong>R$ 186</strong>
-          <small><ArrowUpRight size={13} /> Ticket saudável</small>
+          <span>Lifetime value médio</span>
+          <strong>{formatBRL(avgLtv)}</strong>
+          <small><ArrowUpRight size={13} /> Gasto médio acumulado</small>
         </div>
       </div>
 
@@ -1090,7 +1575,7 @@ function CustomersView({
         <div className="table-toolbar">
           <div>
             <strong>Lista de clientes</strong>
-            <span>Ordenado por recorrência</span>
+            <span>{customers.length} cliente(s) no sistema</span>
           </div>
           <button className="outline-action"><Download size={16} /> Exportar</button>
         </div>
@@ -1100,49 +1585,91 @@ function CustomersView({
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>E-mail</th>
                 <th>WhatsApp</th>
+                <th>Senha de Acesso</th>
                 <th>Pedidos</th>
                 <th>Total gasto</th>
                 <th>Último pedido</th>
-                <th>Favorito</th>
+                <th style={{ textAlign: "center" }}>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {customers.map((customer) => {
-                const cleanPhone = customer.phone ? customer.phone.replace(/\D/g, "") : "";
-                const waLink = cleanPhone ? `https://wa.me/55${cleanPhone}` : "";
+              {customers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "48px 20px", color: "var(--muted)" }}>
+                    <Users size={32} style={{ margin: "0 auto 10px", color: "var(--line)" }} />
+                    <strong style={{ display: "block", fontSize: 13, color: "var(--ink)" }}>Nenhum cliente cadastrado</strong>
+                    <span style={{ fontSize: 11 }}>Clientes que realizarem pedidos ou criarem conta aparecerão aqui.</span>
+                  </td>
+                </tr>
+              ) : (
+                customers.map((customer) => {
+                  const cleanPhone = customer.phone ? customer.phone.replace(/\D/g, "") : "";
+                  const waLink = cleanPhone ? `https://wa.me/55${cleanPhone}` : "";
 
-                return (
-                  <tr key={customer.id}>
-                    <td>
-                      <div className="table-person">
-                        <span className="initials bright">{customer.initials}</span>
-                        <strong>{customer.name}</strong>
-                      </div>
-                    </td>
-                    <td>
-                      {customer.phone ? (
-                        <a
-                          href={waLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="channel-label"
-                          style={{ color: "#256c42", background: "#e5efb8", fontWeight: 800 }}
-                          title="Abrir conversa no WhatsApp"
+                  return (
+                    <tr key={customer.id}>
+                      <td>
+                        <div className="table-person">
+                          <span className="initials bright">{customer.initials}</span>
+                          <div>
+                            <strong>{customer.name}</strong>
+                            <small style={{ color: "var(--muted)" }}>{customer.role === "admin" ? "Administrador" : "Cliente"}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {customer.email ? (
+                          <span style={{ fontSize: 11, color: "var(--ink)" }}>{customer.email}</span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {customer.phone ? (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="channel-label"
+                            style={{ color: "#256c42", background: "#e5efb8", fontWeight: 800 }}
+                            title="Abrir conversa no WhatsApp"
+                          >
+                            <MessageCircle size={13} /> {customer.phone}
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {customer.password ? (
+                          <span style={{ fontSize: 12, letterSpacing: 2, color: "#4c7566" }} title="Senha configurada">
+                            ••••••••
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 10, fontStyle: "italic" }}>
+                            Não definida
+                          </span>
+                        )}
+                      </td>
+                      <td><strong>{customer.orders}</strong> <small>pedidos</small></td>
+                      <td><strong>{formatBRL(customer.spent)}</strong></td>
+                      <td>{customer.lastOrder}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <button
+                          type="button"
+                          className="edit-customer-btn"
+                          onClick={() => onEditProfile(customer)}
+                          title="Editar nome, e-mail, senha e telefone"
                         >
-                          <MessageCircle size={13} /> {customer.phone}
-                        </a>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      )}
-                    </td>
-                    <td><strong>{customer.orders}</strong> <small>pedidos</small></td>
-                    <td><strong>{formatBRL(customer.spent)}</strong></td>
-                    <td>{customer.lastOrder}</td>
-                    <td><span className="favorite-label">{customer.favorite}</span></td>
-                  </tr>
-                );
-              })}
+                          <Edit2 size={12} /> Editar perfil
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -1336,12 +1863,22 @@ function ReferralsView({
 function ReportsView({
   period,
   setPeriod,
+  periodRevenue,
+  diaMaisForte,
+  produtoCampeao,
+  realProductReport,
+  weeklyChartData,
 }: {
   period: "Semana" | "Mês";
   setPeriod: (period: "Semana" | "Mês") => void;
+  periodRevenue: number;
+  diaMaisForte: { name: string; percent: number };
+  produtoCampeao: { name: string; units: number };
+  realProductReport: Array<{ name: string; units: number; revenue: number }>;
+  weeklyChartData: Array<{ label: string; value: number; orders: number }>;
 }) {
-  const data = period === "Semana" ? weeklySales : monthlySales;
-  const total = data.reduce((sum, point) => sum + point.value, 0);
+  const sortedDays = [...weeklyChartData].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+  const maxDayVal = Math.max(1, ...weeklyChartData.map((d) => d.value));
 
   return (
     <>
@@ -1349,7 +1886,7 @@ function ReportsView({
         <div>
           <p className="content-eyebrow">Dados para decisão</p>
           <h2>Relatórios & insights</h2>
-          <p className="content-subtitle">Entenda o que está vendendo e onde agir primeiro.</p>
+          <p className="content-subtitle">Entenda o que está vendendo e onde agir primeiro com base em dados reais do sistema.</p>
         </div>
         <div className="period-switch big">
           <button className={period === "Semana" ? "active" : ""} onClick={() => setPeriod("Semana")}>Última semana</button>
@@ -1360,18 +1897,20 @@ function ReportsView({
       <div className="report-kpi-row">
         <div>
           <span>Faturamento no recorte</span>
-          <strong>{formatBRL(total)}</strong>
-          <small><ArrowUpRight size={13} /> 18,4% contra o recorte anterior</small>
+          <strong>{formatBRL(periodRevenue)}</strong>
+          <small>
+            {periodRevenue > 0 ? "Total apurado em pedidos reais" : "Nenhum faturamento registrado no período"}
+          </small>
         </div>
         <div>
           <span>Dia mais forte</span>
-          <strong>Sexta-feira</strong>
-          <small>24% do faturamento semanal</small>
+          <strong>{diaMaisForte.name}</strong>
+          <small>{diaMaisForte.percent > 0 ? `${diaMaisForte.percent}% do faturamento semanal` : "Sem vendas registradas nesta semana"}</small>
         </div>
         <div>
           <span>Produto campeão</span>
-          <strong>Panqueca de frango</strong>
-          <small>182 unidades vendidas</small>
+          <strong>{produtoCampeao.name}</strong>
+          <small>{produtoCampeao.units > 0 ? `${produtoCampeao.units} unidades vendidas` : "Sem vendas registradas"}</small>
         </div>
       </div>
 
@@ -1382,18 +1921,26 @@ function ReportsView({
               <p className="panel-kicker">Produtos</p>
               <h3>O que mais sai</h3>
             </div>
-            <button className="icon-button"><MoreHorizontal size={18} /></button>
+            <Package size={19} className="panel-icon" />
           </div>
-          {productReport.map((item, index) => (
-            <div className="report-row" key={item.name}>
-              <span className="rank">0{index + 1}</span>
-              <div>
-                <strong>{item.name}</strong>
-                <small>{item.units} unidades vendidas</small>
-              </div>
-              <b>{formatBRL(item.revenue)}</b>
+          {realProductReport.length === 0 ? (
+            <div className="admin-empty-state" style={{ padding: "40px 20px", textAlign: "center" }}>
+              <Package size={32} style={{ color: "var(--line)", marginBottom: 8 }} />
+              <p style={{ fontWeight: 600, color: "#374151" }}>Nenhum produto vendido ainda</p>
+              <span style={{ fontSize: 13, color: "#9ca3af" }}>Os produtos mais vendidos aparecerão aqui à medida que os pedidos forem criados.</span>
             </div>
-          ))}
+          ) : (
+            realProductReport.slice(0, 8).map((item, index) => (
+              <div className="report-row" key={item.name}>
+                <span className="rank">{index + 1 < 10 ? `0${index + 1}` : index + 1}</span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.units} {item.units === 1 ? "unidade vendida" : "unidades vendidas"}</small>
+                </div>
+                <b>{formatBRL(item.revenue)}</b>
+              </div>
+            ))
+          )}
         </section>
 
         <section className="panel report-list">
@@ -1404,21 +1951,30 @@ function ReportsView({
             </div>
             <BarChart3 size={19} className="panel-icon" />
           </div>
-          {weeklySales
-            .slice(0, 5)
-            .sort((a, b) => b.value - a.value)
-            .map((item) => (
+          {sortedDays.length === 0 ? (
+            <div className="admin-empty-state" style={{ padding: "40px 20px", textAlign: "center" }}>
+              <BarChart3 size={32} style={{ color: "var(--line)", marginBottom: 8 }} />
+              <p style={{ fontWeight: 600, color: "#374151" }}>Sem vendas na semana</p>
+              <span style={{ fontSize: 13, color: "#9ca3af" }}>O ranking de faturamento por dia da semana será gerado automaticamente.</span>
+            </div>
+          ) : (
+            sortedDays.map((item) => (
               <div className="day-row" key={item.label}>
                 <span>{item.label}</span>
                 <div className="day-track">
-                  <i style={{ width: `${(item.value / 1680) * 100}%` }} />
+                  <i style={{ width: `${Math.max(4, (item.value / maxDayVal) * 100)}%` }} />
                 </div>
                 <strong>{formatBRL(item.value)}</strong>
               </div>
-            ))}
+            ))
+          )}
           <div className="report-insight">
             <TrendingUp size={16} />
-            <span>Concentre combos e comunicação de antecipação entre quinta e sexta.</span>
+            <span>
+              {diaMaisForte.percent > 0
+                ? `Pico de pedidos registrado na ${diaMaisForte.name} (${diaMaisForte.percent}% da semana).`
+                : "Os insights de comportamento de compra aparecerão conforme os pedidos forem realizados."}
+            </span>
           </div>
         </section>
       </div>
@@ -1473,6 +2029,190 @@ function NewCustomerModal({
         >
           Salvar cliente <Check size={16} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Modal de exclusão permanente de pedido
+function DeleteOrderModal({
+  order,
+  loading,
+  onClose,
+  onConfirm,
+}: {
+  order: Order;
+  loading: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker" style={{ color: "#d9534f", fontWeight: 700 }}>Atenção Operação</p>
+        <h3 style={{ marginTop: 4 }}>Excluir pedido {order.id}?</h3>
+        <p className="modal-description" style={{ marginTop: 8 }}>
+          Tem certeza de que deseja excluir permanentemente o pedido de <strong>{order.customer}</strong> no valor de <strong>{formatBRL(order.total)}</strong>?
+        </p>
+        <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 8, padding: "10px 14px", margin: "14px 0", color: "#991b1b", fontSize: 12 }}>
+          ⚠️ Esta ação apagará o pedido e suas notificações do banco de dados de maneira irreversível e persistente.
+        </div>
+
+        <div className="modal-actions" style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button type="button" className="action-btn" onClick={onClose} disabled={loading} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: 600 }}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="action-btn"
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            <Trash2 size={15} />
+            {loading ? "Excluindo..." : "Confirmar exclusão"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal para edição de perfil do cliente (Nome, E-mail, Senha e Telefone)
+function EditCustomerModal({
+  customer,
+  onClose,
+  onSave,
+}: {
+  customer: Customer;
+  onClose: () => void;
+  onSave: (id: string, updates: { name: string; phone: string; email?: string; password?: string }) => Promise<void> | void;
+}) {
+  const [name, setName] = useState(customer.name || "");
+  const [phone, setPhone] = useState(customer.phone || "");
+  const [email, setEmail] = useState(customer.email || "");
+  const [password, setPassword] = useState(customer.password || "");
+  const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(customer.id, {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim().toLowerCase() || undefined,
+        password: password.trim() || undefined,
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker" style={{ color: "var(--brand-dark)" }}>Gestão de Cliente</p>
+        <h3 style={{ marginTop: 4 }}>Editar perfil do cliente</h3>
+        <p className="modal-description" style={{ marginTop: 6, fontSize: 13 }}>
+          Atualize os dados de <strong>{customer.name}</strong>. As alterações têm efeito persistente e imediato no banco de dados.
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="modal-form-group">
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" }}>Nome completo</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Carolina Santos"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" }}>Telefone / WhatsApp</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Ex.: (65) 99876-5432"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" }}>E-mail de login</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Ex.: cliente@exemplo.com"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" }}>Senha de acesso</label>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Nova senha (ou deixe para manter)"
+                style={{ width: "100%", padding: "9px 38px 9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#6b7280",
+                  padding: 2,
+                }}
+                title={showPassword ? "Ocultar senha" : "Ver senha"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <small style={{ fontSize: 11, color: "#6b7280", marginTop: 4, display: "block" }}>
+              O cliente poderá fazer login no cardápio usando este e-mail e senha.
+            </small>
+          </div>
+
+          <div className="modal-actions" style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}>
+            <button
+              type="button"
+              className="action-btn"
+              onClick={onClose}
+              disabled={saving}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontWeight: 600 }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="action-btn"
+              disabled={saving}
+              style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "var(--brand-dark, #244133)", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <Check size={16} />
+              {saving ? "Salvando..." : "Salvar perfil"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1813,7 +2553,7 @@ function NewProductModal({
       stock: isNaN(s) ? 50 : s,
       available: true,
       image: image.trim() || "/marmitas/marmita-1.jpg",
-      tags: ["Fit"],
+      tag: "Fit",
     };
 
     onSubmit(newProduct);

@@ -62,12 +62,18 @@ export type Order = {
   channel: "Delivery" | "Retirada";
   time: string;
   payment: string;
+  isPaid?: boolean;
+  paidAt?: string;
+  createdAt?: string;
 };
 
 export type Customer = {
   id: string;
   name: string;
   phone: string;
+  email?: string;
+  password?: string;
+  role?: "user" | "admin";
   initials: string;
   orders: number;
   spent: number;
@@ -159,79 +165,13 @@ export const initialProducts: Product[] = [
   product("suco-abacaxi", "Suco de abacaxi com hortelã", "Sucos", "300ml de abacaxi, hortelã e água.", 13, 10, 3.8, "/marmitas/marmita-3.jpg"),
 ];
 
-export const initialOrders: Order[] = [
-  { id: "#HF-1048", customer: "Mariana Costa", customerPhone: "(65) 99821-3344", initials: "MC", items: 3, itemNames: ["Panqueca de carne moída ao molho vermelho", "Suco de morango"], total: 66, status: "Em Preparo", channel: "Delivery", time: "há 8 min", payment: "Pix" },
-  { id: "#HF-1047", customer: "Rafael Mendes", customerPhone: "(65) 99654-1122", initials: "RM", items: 5, itemNames: ["Combo 05 marmitas (3x Fricassê de frango, 2x Strogonoff de carne)"], subtotal: 119, discountAmount: 11.9, couponCode: "LUCASFIT", partnerId: "p1", partnerName: "Lucas Personal Trainer", total: 107.1, status: "Pedido Recebido", channel: "Retirada", time: "há 14 min", payment: "Cartão" },
-  { id: "#HF-1046", customer: "Bianca Alves", customerPhone: "(65) 99123-5566", initials: "BA", items: 2, itemNames: ["Strogonoff de carne com arroz branco", "Caldo de abóbora"], total: 44.5, status: "Aguardando", channel: "Delivery", time: "há 21 min", payment: "Pix" },
-  { id: "#HF-1045", customer: "Lucas Vieira", customerPhone: "(65) 99789-0011", initials: "LV", items: 4, itemNames: ["Combo 10 marmitas (5x Frango em cubos, 5x Fricassê de frango)"], subtotal: 229, discountAmount: 34.35, couponCode: "CAMILANUTRI", partnerId: "p2", partnerName: "Dra. Camila Nutri", total: 194.65, status: "Na Entrega", channel: "Delivery", time: "há 36 min", payment: "Vale-refeição" },
-  { id: "#HF-1044", customer: "Ana Souza", customerPhone: "(65) 98455-7788", initials: "AS", items: 1, itemNames: ["Escondidinho de frango com purê de batata-doce"], total: 26.5, status: "Concluído", channel: "Retirada", time: "ontem", payment: "Pix" },
-  { id: "#HF-1043", customer: "Diego Rocha", customerPhone: "(65) 99344-9900", initials: "DR", items: 3, itemNames: ["Arroz, feijão carioca, carne moída ao molho e legumes"], total: 92.5, status: "Concluído", channel: "Delivery", time: "ontem", payment: "Cartão" },
-];
-
-export const initialCustomers: Customer[] = [
-  { id: "c1", name: "Mariana Costa", phone: "(65) 99821-3344", initials: "MC", orders: 18, spent: 824.5, lastOrder: "Hoje, 12:42", favorite: "Panqueca de frango" },
-  { id: "c2", name: "Rafael Mendes", phone: "(65) 99654-1122", initials: "RM", orders: 14, spent: 671, lastOrder: "Hoje, 12:36", favorite: "Combo 10 marmitas" },
-  { id: "c3", name: "Bianca Alves", phone: "(65) 99123-5566", initials: "BA", orders: 11, spent: 489.5, lastOrder: "Ontem, 19:12", favorite: "Strogonoff de carne" },
-  { id: "c4", name: "Lucas Vieira", phone: "(65) 99789-0011", initials: "LV", orders: 9, spent: 445, lastOrder: "Ontem, 12:28", favorite: "Combo 20 marmitas" },
-  { id: "c5", name: "Ana Souza", phone: "(65) 98455-7788", initials: "AS", orders: 8, spent: 322, lastOrder: "20 out, 11:04", favorite: "Escondidinho de frango" },
-];
-
-export const initialPartners: Partner[] = [
-  {
-    id: "p1",
-    name: "Lucas Personal Trainer",
-    phone: "(65) 99812-4433",
-    coupon: "LUCASFIT",
-    discountPercent: 10,
-    createdAt: "10/10/2026",
-    active: true,
-  },
-  {
-    id: "p2",
-    name: "Dra. Camila Nutricionista",
-    phone: "(65) 99234-8899",
-    coupon: "CAMILANUTRI",
-    discountPercent: 15,
-    createdAt: "15/10/2026",
-    active: true,
-  },
-  {
-    id: "p3",
-    name: "Academia Iron House",
-    phone: "(65) 99600-1234",
-    coupon: "IRONHOUSE",
-    discountPercent: 10,
-    createdAt: "18/10/2026",
-    active: true,
-  },
-];
-
-export const weeklySales = [
-  { label: "Seg", value: 820, orders: 26 },
-  { label: "Ter", value: 1080, orders: 34 },
-  { label: "Qua", value: 940, orders: 29 },
-  { label: "Qui", value: 1310, orders: 41 },
-  { label: "Sex", value: 1680, orders: 53 },
-  { label: "Sáb", value: 710, orders: 21 },
-  { label: "Dom", value: 420, orders: 12 },
-];
-
-export const monthlySales = [
-  { label: "Mai", value: 18400 },
-  { label: "Jun", value: 21200 },
-  { label: "Jul", value: 23900 },
-  { label: "Ago", value: 26800 },
-  { label: "Set", value: 31200 },
-  { label: "Out", value: 35940 },
-];
-
-export const productReport = [
-  { name: "Panqueca de carne moída ao molho vermelho", units: 182, revenue: 4823 },
-  { name: "Combo 10 marmitas", units: 94, revenue: 21526 },
-  { name: "Strogonoff de carne com arroz branco", units: 86, revenue: 2279 },
-  { name: "Escondidinho de frango com purê de batata-doce", units: 77, revenue: 2040 },
-  { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
-];
+// Dados iniciais estritamente vazios para garantir 100% dados reais da base
+export const initialOrders: Order[] = [];
+export const initialCustomers: Customer[] = [];
+export const initialPartners: Partner[] = [];
+export const weeklySales: Array<{ label: string; value: number; orders?: number }> = [];
+export const monthlySales: Array<{ label: string; value: number; orders?: number }> = [];
+export const productReport: Array<{ name: string; units: number; revenue: number }> = [];
 
 export const PRODUCTS_STORAGE_KEY = "housefit-products-v10";
 
