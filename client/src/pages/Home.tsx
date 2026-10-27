@@ -38,6 +38,7 @@ import {
   initialProducts,
   loadFromStorage,
   saveToStorage,
+  sanitizeProducts,
   PRODUCTS_STORAGE_KEY,
   type Order,
   type OrderStatus,
@@ -135,8 +136,9 @@ export default function Home() {
     let isMounted = true;
     fetchDbProducts().then((dbProducts) => {
       if (isMounted && dbProducts.length > 0) {
-        setProducts(dbProducts);
-        saveToStorage(PRODUCTS_STORAGE_KEY, dbProducts);
+        const sanitized = sanitizeProducts(dbProducts);
+        setProducts(sanitized);
+        saveToStorage(PRODUCTS_STORAGE_KEY, sanitized);
       }
     });
     fetchDbPartners().then((dbPartners) => {

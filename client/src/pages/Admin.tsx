@@ -44,6 +44,7 @@ import {
   monthlySales,
   productReport,
   saveToStorage,
+  sanitizeProducts,
   PRODUCTS_STORAGE_KEY,
   weeklySales,
   type Customer,
@@ -102,8 +103,9 @@ export default function Admin() {
     let isMounted = true;
     fetchDbProducts().then((data) => {
       if (isMounted && data.length > 0) {
-        setProducts(data);
-        saveToStorage(PRODUCTS_STORAGE_KEY, data);
+        const sanitized = sanitizeProducts(data);
+        setProducts(sanitized);
+        saveToStorage(PRODUCTS_STORAGE_KEY, sanitized);
       }
     });
     fetchDbOrders().then((data) => {
