@@ -244,7 +244,7 @@ export const productReport = [
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
 ];
 
-export const PRODUCTS_STORAGE_KEY = "housefit-products-v7";
+export const PRODUCTS_STORAGE_KEY = "housefit-products-v8";
 
 export function sanitizeProducts(savedList: Product[]): Product[] {
   const comboUpdates: Record<string, Partial<Product>> = {
