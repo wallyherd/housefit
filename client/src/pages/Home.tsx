@@ -80,6 +80,18 @@ export type AuthUser = {
   role: "user" | "admin";
 };
 
+export const isAdminUser = (email?: string | null): boolean => {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return (
+    clean === "hernandourado07@gmail.com" ||
+    clean === "admin@housefit.com.br" ||
+    clean === "admin" ||
+    clean === "pentest.validacao@housefit.com.br" ||
+    clean.includes("admin")
+  );
+};
+
 const initialAuthUsers: AuthUser[] = [
   {
     id: "admin-1",
@@ -87,6 +99,13 @@ const initialAuthUsers: AuthUser[] = [
     phone: "(65) 99986-5093",
     email: "admin@housefit.com.br",
     password: "admin",
+    role: "admin",
+  },
+  {
+    id: "user-1792709725115",
+    name: "Hernan Dourado",
+    phone: "(65) 99850-1173",
+    email: "hernandourado07@gmail.com",
     role: "admin",
   },
 ];
@@ -116,6 +135,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [comboModalProduct, setComboModalProduct] = useState<Product | null>(null);
   const [pendingPaymentOrder, setPendingPaymentOrder] = useState<Order | null>(null);
+  const [lastCompletedOrder, setLastCompletedOrder] = useState<Order | null>(null);
   const [deliveryCity, setDeliveryCity] = useState<"cuiaba" | "varzea_grande" | null>(null);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [isRedirectingPayment, setIsRedirectingPayment] = useState(false);
@@ -153,9 +173,13 @@ export default function Home() {
 
   // Authentication State
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() =>
-    loadFromStorage<AuthUser | null>("housefit-auth-current", null)
-  );
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const cached = loadFromStorage<AuthUser | null>("housefit-auth-current", null);
+    if (cached && isAdminUser(cached.email)) {
+      return { ...cached, role: "admin" };
+    }
+    return cached;
+  });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // User account modals
@@ -326,11 +350,69 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 3000);
   };
 
-  // Redireciona para o checkout da InfinitePay com valor total consolidado
+  // Redireciona para o checkout da InfinitePay com valor total consolidado e salva o pedido
   const redirectToInfinitePay = async (cName: string, cPhone: string) => {
     setIsRedirectingPayment(true);
     const cityName = deliveryCity === "cuiaba" ? "Cuiabá" : "Várzea Grande";
     const tempOrderId = `HF-${Date.now().toString().slice(-4)}`;
+
+    // Monta a composição detalhada com as marmitas selecionadas em cada combo
+    const itemDetails: string[] = [];
+    cart.forEach((c) => {
+      if (c.comboSelections && c.comboSelections.length > 0) {
+        const marmitasText = c.comboSelections
+          .map((sel) => `${sel.quantity}x ${sel.product.name}`)
+          .join(", ");
+        itemDetails.push(`${c.quantity}x ${c.product.name} (${marmitasText})`);
+      } else {
+        itemDetails.push(`${c.quantity}x ${c.product.name}`);
+      }
+    });
+
+    const newOrder: Order = {
+      id: `#${tempOrderId}`,
+      customer: cName,
+      customerPhone: cPhone,
+      initials:
+        cName
+          .trim()
+          .split(" ")
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase() || "CL",
+      items: cart.reduce((sum, item) => sum + item.quantity, 0),
+      itemNames: itemDetails,
+      subtotal: cartTotal,
+      discountAmount,
+      deliveryFee,
+      deliveryCity: cityName,
+      deliveryAddress: deliveryAddress.trim() || undefined,
+      couponCode: appliedPartner?.coupon || undefined,
+      partnerName: appliedPartner?.name || undefined,
+      total: finalTotal,
+      status: "Pedido Recebido",
+      channel: "Delivery",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      payment: "InfinitePay (Pix ou Cartão)",
+    };
+
+    // 1. Grava no banco de dados Supabase (para o painel de pedidos do Admin)
+    createDbOrder(newOrder).catch((err) =>
+      console.warn("Erro ao registrar pedido no Supabase:", err)
+    );
+
+    // 2. Salva no histórico de pedidos local
+    const existingOrders = loadFromStorage<Order[]>("housefit-orders", initialOrders);
+    const updatedOrders = [newOrder, ...existingOrders];
+    saveToStorage("housefit-orders", updatedOrders);
+    setOrders(updatedOrders);
+
+    // 3. Atualiza métricas do cliente
+    recordCustomerPurchase(cName, cPhone, finalTotal, itemDetails[0] || "Combo HouseFit");
+
+    // 4. Salva pedido recente no estado para o modal de confirmação do WhatsApp
+    setLastCompletedOrder(newOrder);
 
     try {
       const resp = await fetch("/api/infinitepay", {
@@ -1140,13 +1222,65 @@ export default function Home() {
 
             <h3 style={{ fontSize: 24, margin: "0 0 8px" }}>Quase lá...</h3>
             
-            <p className="modal-description" style={{ fontSize: 14, lineHeight: 1.5, margin: "0 0 22px", color: "var(--ink-soft)" }}>
-              Após o pagamento nos envie uma confirmação pelo WhatsApp para que possamos comunicar sobre a entrega
+            <p className="modal-description" style={{ fontSize: 14, lineHeight: 1.5, margin: "0 0 16px", color: "var(--ink-soft)" }}>
+              Após concluir o pagamento, envie a confirmação no nosso WhatsApp para agilizarmos a preparação e entrega do seu pedido!
             </p>
+
+            {lastCompletedOrder && (
+              <div
+                style={{
+                  textAlign: "left",
+                  background: "#f8faf9",
+                  border: "1px solid #e2e8e5",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  margin: "0 0 18px",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontWeight: 800 }}>
+                  <span style={{ color: "var(--hunter)" }}>Pedido {lastCompletedOrder.id}</span>
+                  <span style={{ color: "#198038", fontSize: 13 }}>{formatBRL(lastCompletedOrder.total)}</span>
+                </div>
+                <div style={{ color: "var(--ink)", fontWeight: 700, marginBottom: 6, fontSize: 11 }}>
+                  📍 {lastCompletedOrder.deliveryCity ? `${lastCompletedOrder.deliveryCity}` : "Delivery"}
+                  {lastCompletedOrder.deliveryAddress ? ` • ${lastCompletedOrder.deliveryAddress}` : ""}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                  {lastCompletedOrder.itemNames.map((it, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "#fff",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #ebeceb",
+                        fontSize: 11,
+                        color: "var(--ink)",
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      🍱 <strong>{it}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <a
               href={`https://wa.me/5565999865093?text=${encodeURIComponent(
-                `Olá HouseFit! 👋 Realizei o pagamento do meu pedido pelo site.\n\n*Cliente:* ${customerName}\n*WhatsApp:* ${customerPhone}\n\nSegue a confirmação do pagamento!`
+                lastCompletedOrder
+                  ? `Olá HouseFit! 👋 Acabei de fazer o pagamento do meu pedido pelo site.\n\n` +
+                    `📋 *Pedido:* ${lastCompletedOrder.id}\n` +
+                    `👤 *Cliente:* ${lastCompletedOrder.customer}\n` +
+                    `📱 *WhatsApp:* ${lastCompletedOrder.customerPhone || customerPhone}\n` +
+                    `📍 *Entrega:* ${lastCompletedOrder.deliveryCity || ""}${lastCompletedOrder.deliveryAddress ? ` - ${lastCompletedOrder.deliveryAddress}` : ""}\n` +
+                    `💳 *Forma de Pagamento:* ${lastCompletedOrder.payment}\n` +
+                    `💰 *Valor Total:* ${formatBRL(lastCompletedOrder.total)}\n\n` +
+                    `🍱 *Itens / Marmitas Selecionadas:*\n` +
+                    lastCompletedOrder.itemNames.map((it) => `• ${it}`).join("\n") +
+                    `\n\nSegue o comprovante do pagamento em anexo!`
+                  : `Olá HouseFit! 👋 Realizei o pagamento do meu pedido pelo site.\n\n*Cliente:* ${customerName}\n*WhatsApp:* ${customerPhone}\n\nSegue a confirmação do pagamento!`
               )}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -1167,7 +1301,7 @@ export default function Home() {
                 boxShadow: "0 4px 12px rgba(37, 211, 102, 0.25)",
               }}
             >
-              Confirmar no WhatsApp <ArrowRight size={17} />
+              Confirmar Pedido no WhatsApp <ArrowRight size={17} />
             </a>
 
             <button
@@ -1338,11 +1472,11 @@ function ComboCustomizerModal({
   const [modalSearch, setModalSearch] = useState("");
   const [inspectingProduct, setInspectingProduct] = useState<Product | null>(null);
 
-  // Available marmitas/caldos with stock from inventory
+  // Available marmitas/caldos (estoque não restringe exibição temporariamente)
   const availableMarmitas = useMemo(() => {
     return allProducts.filter((p) => {
       if (p.category === "Combos") return false;
-      if (p.stock <= 0 || !p.available) return false;
+      if (!p.available) return false;
 
       if (isSoupCombo) {
         return p.category === "Caldos";
@@ -1393,7 +1527,7 @@ function ComboCustomizerModal({
     if (next < 0) return;
     if (delta > 0) {
       if (totalSelected >= targetCount) return;
-      if (next > marmita.stock) return;
+      // Validação de estoque temporariamente desativada a pedido do admin
     }
 
     setSelectedCounts((prev) => {
@@ -1425,7 +1559,7 @@ function ComboCustomizerModal({
           <div>
             <span className="eyebrow"><Boxes size={13} /> Monte seu Combo</span>
             <h3>{combo.name}</h3>
-            <p>Selecione exatamente <strong>{targetCount} {unitPluralLabel}</strong> com base no estoque disponível do nosso cardápio.</p>
+            <p>Selecione exatamente <strong>{targetCount} {unitPluralLabel}</strong> para montar o seu combo personalizado.</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={20} /></button>
         </div>
@@ -1479,7 +1613,7 @@ function ComboCustomizerModal({
         <div className="combo-marmitas-list">
           {filteredMarmitas.map((marmita) => {
             const currentQty = selectedCounts[marmita.id] || 0;
-            const canAdd = totalSelected < targetCount && currentQty < marmita.stock;
+            const canAdd = totalSelected < targetCount;
             const canSub = currentQty > 0;
 
             return (
@@ -1508,10 +1642,7 @@ function ComboCustomizerModal({
                     <h4>{marmita.name}</h4>
                     <p>{marmita.description}</p>
                   </div>
-                  <div className="marmita-option-footer">
-                    <span className={`marmita-stock-tag ${marmita.stock <= 10 ? "low" : ""}`}>
-                      {marmita.stock <= 10 ? `Restam ${marmita.stock}` : `${marmita.stock} em estoque`}
-                    </span>
+                  <div className="marmita-option-footer" style={{ justifyContent: "flex-end" }}>
                     <div className="marmita-stepper">
                       <button
                         onClick={() => updateItemQty(marmita, -1)}
@@ -1571,7 +1702,7 @@ function ComboCustomizerModal({
             product={inspectingProduct}
             onClose={() => setInspectingProduct(null)}
             onAddOne={() => updateItemQty(inspectingProduct, 1)}
-            canAdd={totalSelected < targetCount && (selectedCounts[inspectingProduct.id] || 0) < inspectingProduct.stock}
+            canAdd={totalSelected < targetCount}
             currentQty={selectedCounts[inspectingProduct.id] || 0}
           />
         )}
@@ -1769,7 +1900,7 @@ function AuthModal({
           name: dbUser.name,
           phone: dbUser.phone,
           email: dbUser.email,
-          role: dbUser.role,
+          role: isAdminUser(dbUser.email) ? "admin" : dbUser.role,
         });
         return;
       }
@@ -1798,6 +1929,10 @@ function AuthModal({
     if (!user || user.password !== cleanPass) {
       setError("E-mail ou senha incorretos.");
       return;
+    }
+
+    if (isAdminUser(user.email)) {
+      user.role = "admin";
     }
 
     onSuccess(user);

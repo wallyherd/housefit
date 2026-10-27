@@ -777,14 +777,23 @@ function OrdersView({
                             {order.customerPhone}
                           </small>
                         )}
+                        {(order.deliveryAddress || order.deliveryCity) && (
+                          <small style={{ color: "#5a6b63", display: "block", fontSize: 10, marginTop: 3 }}>
+                            📍 {order.deliveryCity ? `${order.deliveryCity} • ` : ""}{order.deliveryAddress || ""}
+                          </small>
+                        )}
                       </div>
                     </div>
                   </td>
-                  <td style={{ maxWidth: 280 }}>
+                  <td style={{ maxWidth: 340 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>{order.items} itens</div>
-                    <small style={{ color: "var(--muted)", display: "block", marginTop: 2, lineHeight: 1.35 }}>
-                      {order.itemNames.join(" • ")}
-                    </small>
+                    <div style={{ color: "var(--ink-soft)", display: "flex", flexDirection: "column", gap: 3, marginTop: 3, fontSize: 11, lineHeight: 1.35 }}>
+                      {order.itemNames.map((name, idx) => (
+                        <span key={idx} style={{ background: "#f5f6f4", padding: "3px 6px", borderRadius: 4, display: "inline-block", border: "1px solid #ebebeb" }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td>
                     {order.couponCode ? (
