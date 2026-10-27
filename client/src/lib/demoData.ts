@@ -117,6 +117,11 @@ export const initialProducts: Product[] = [
   product("frango-escond-inglesa", "Escondidinho de frango com purê de batata inglesa e queijo", "Frango", "Escondidinho de frango com purê de batata inglesa e queijo", 26.5, 46, 11.9, "/marmitas/marmita-2.jpg"),
   product("frango-escond-abobora", "Escondidinho de frango com purê de abóbora", "Frango", "Frango desfiado, purê de abóbora cabotiá e queijo.", 26.5, 54, 11.3, "/marmitas/marmita-4.jpg"),
   product("frango-strogonoff", "Strogonoff de frango com arroz branco e legumes", "Frango", "Strogonoff de frango com arroz branco e legumes", 26.5, 18, 11.7, "/marmitas/marmita-1.jpg"),
+  product("marmita-frango-pure-cenoura", "Arroz branco, feijão,  frango grelhado e purê de cenoura", "Frango", "Arroz branco, feijão,  frango grelhado e purê de cenoura", 26.5, 50, 11.5, "/marmitas/marmita-2.jpg"),
+  product("marmita-yakisoba-frango", "Yaksoba de frango", "Frango", "Yaksoba de frango", 26.5, 50, 11.8, "/marmitas/marmita-3.jpg"),
+  product("marmita-frango-curry", "Arroz, feijão, frango com crry e legumes", "Frango", "Arroz, feijão, frango com crry e legumes", 26.5, 50, 11.6, "/marmitas/marmita-4.jpg"),
+  product("marmita-batata-doce-frango", "Batata doce em cubos, frango grelhado e legumes", "Frango", "Batata doce em cubos, frango grelhado e legumes", 26.5, 50, 11.2, "/marmitas/marmita-5.jpg"),
+  product("marmita-frango-queijo-brocolis", "Arroz, feijão e frango ao molho de queijo com brócolis", "Frango", "Arroz, feijão e frango ao molho de queijo com brócolis", 26.5, 50, 12.0, "/marmitas/marmita-3.jpg"),
   product("carne-pan-vermelho", "Panqueca de carne moída ao molho vermelho", "Carne", "Panqueca de carne moída ao molho vermelho", 26.5, 16, 12.4, "/marmitas/marmita-2.jpg"),
   product("carne-pan-branco", "Panqueca de carne moída ao molho branco", "Carne", "Panqueca de carne moída ao molho branco", 26.5, 40, 12.6, "/marmitas/marmita-3.jpg"),
   product("carne-strogonoff", "Strogonoff de carne com arroz branco", "Carne", "180g de strogonoff de carne com 120g de arroz.", 26.5, 56, 13.2, "/marmitas/marmita-4.jpg"),
@@ -129,6 +134,9 @@ export const initialProducts: Product[] = [
   product("carne-escond-abobora-moida", "Escondidinho de carne moída com purê de abóbora", "Carne", "Patinho moído, purê de abóbora e queijo.", 26.5, 34, 12.3, "/marmitas/marmita-5.jpg"),
   product("carne-macarrão", "Macarrão integral ao molho bolonhesa", "Carne", "Macarrão integral, patinho, molho de tomate e queijo.", 26.5, 13, 11.8, "/marmitas/marmita-1.jpg"),
   product("carne-patinho-abobora", "Arroz branco, carne moída ao molho e legumes", "Carne", "Arroz branco, carne moída ao molho e legumes", 26.5, 55, 11.6, "/marmitas/marmita-3.jpg"),
+  product("marmita-feijoada-fit", "Feijoada Fit, com lombo suíno e paio, arroz branco e couve refogada", "Carne", "Feijoada Fit, com lombo suíno e paio, arroz branco e couve refogada", 26.5, 50, 12.5, "/marmitas/marmita-1.jpg"),
+  product("marmita-porco-mel-mostarda", "Arroz, feijão, carne de porco com mel e mostarda e legumes", "Carne", "Arroz, feijão, carne de porco com mel e mostarda e legumes", 26.5, 50, 12.8, "/marmitas/marmita-1.jpg"),
+  product("marmita-picadinho-legumes", "Arroz, feijão e picadinho de carne com legumes", "Carne", "Arroz, feijão e picadinho de carne com legumes", 26.5, 50, 12.4, "/marmitas/marmita-2.jpg"),
   product("caldo-carioca", "Caldo de feijão carioca com bacon e calabresa", "Caldos", "350ml de caldo encorpado para aquecer a rotina.", 18, 28, 7.1, "/marmitas/caldo-1.jpg"),
   product("caldo-abobora-frango", "Caldo de abóbora com frango desfiado", "Caldos", "350ml de caldo de abóbora com frango.", 18, 26, 6.4, "/marmitas/caldo-2.jpg"),
   product("caldo-abobora-carne", "Caldo de abóbora com patinho moído", "Caldos", "350ml de caldo de abóbora com patinho.", 18, 39, 6.9, "/marmitas/caldo-1.jpg"),
@@ -225,7 +233,7 @@ export const productReport = [
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
 ];
 
-export const PRODUCTS_STORAGE_KEY = "housefit-products-v9";
+export const PRODUCTS_STORAGE_KEY = "housefit-products-v10";
 
 const REMOVED_PRODUCT_SLUGS = new Set([
   "carne-arroz-abobora",
@@ -343,7 +351,7 @@ export function sanitizeProducts(savedList: Product[]): Product[] {
     return { ...p, name, description, image };
   });
 
-  // Garantir que combo-caldos-20 exista na lista
+  // Garantir que combo-caldos-20 e novos produtos adicionados existam na lista
   if (!updated.some((p) => p.id === "combo-caldos-20")) {
     const soupCombo20 = initialProducts.find((p) => p.id === "combo-caldos-20");
     if (soupCombo20) {
@@ -353,6 +361,13 @@ export function sanitizeProducts(savedList: Product[]): Product[] {
       } else {
         updated.push(soupCombo20);
       }
+    }
+  }
+
+  // Garantir novos produtos do catálogo inicial
+  for (const initP of initialProducts) {
+    if (!REMOVED_PRODUCT_SLUGS.has(initP.id) && !updated.some((p) => p.id === initP.id)) {
+      updated.push(initP);
     }
   }
 

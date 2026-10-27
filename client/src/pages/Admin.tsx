@@ -52,6 +52,7 @@ import {
   type OrderStatus,
   type Partner,
   type Product,
+  type Category,
 } from "@/lib/demoData";
 import {
   fetchDbProducts,
@@ -96,6 +97,7 @@ export default function Admin() {
   const [newCustomerModalOpen, setNewCustomerModalOpen] = useState(false);
   const [newPartnerModalOpen, setNewPartnerModalOpen] = useState(false);
   const [editProductModal, setEditProductModal] = useState<Product | null>(null);
+  const [newProductModalOpen, setNewProductModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   // Sincronização inicial com o banco Supabase
@@ -243,6 +245,16 @@ export default function Admin() {
     if (!item) return;
     const nextStock = Math.max(0, item.stock + delta);
     updateProductFields(id, { stock: nextStock });
+  };
+
+  const handleCreateProduct = (newProduct: Product) => {
+    const next = [newProduct, ...products];
+    setProducts(next);
+    saveToStorage(PRODUCTS_STORAGE_KEY, next);
+    saveToStorage("housefit-products", next);
+    upsertDbProduct(newProduct);
+    setNewProductModalOpen(false);
+    showToast(`Produto "${newProduct.name}" cadastrado com sucesso!`);
   };
 
   const handleAddCustomer = (name: string, phone: string) => {
@@ -420,6 +432,7 @@ export default function Admin() {
               onAdjustStock={adjustStock}
               onUpdateProduct={updateProductFields}
               onOpenEditModal={(p) => setEditProductModal(p)}
+              onOpenNewModal={() => setNewProductModalOpen(true)}
             />
           )}
 
@@ -484,6 +497,14 @@ export default function Admin() {
             updateProductFields(editProductModal.id, updates);
             setEditProductModal(null);
           }}
+        />
+      )}
+
+      {/* New Product Modal */}
+      {newProductModalOpen && (
+        <NewProductModal
+          onClose={() => setNewProductModalOpen(false)}
+          onSubmit={handleCreateProduct}
         />
       )}
 
@@ -814,6 +835,7 @@ function ProductsView({
   onAdjustStock,
   onUpdateProduct,
   onOpenEditModal,
+  onOpenNewModal,
 }: {
   products: Product[];
   search: string;
@@ -822,6 +844,7 @@ function ProductsView({
   onAdjustStock: (id: string, delta: number) => void;
   onUpdateProduct: (id: string, updates: Partial<Product>) => void;
   onOpenEditModal: (product: Product) => void;
+  onOpenNewModal: () => void;
 }) {
   return (
     <>
@@ -831,10 +854,17 @@ function ProductsView({
           <h2>Produtos & estoque</h2>
           <p className="content-subtitle">Edite Preço, Custo e Estoque diretamente na tabela ou no botão editar.</p>
         </div>
-        <div className="view-actions">
+        <div className="view-actions" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 800 }}>
             {products.length} itens cadastrados
           </span>
+          <button
+            className="primary-button compact"
+            onClick={onOpenNewModal}
+            style={{ background: "var(--hunter)", color: "#fff", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <Plus size={15} /> Nova Marmita
+          </button>
         </div>
       </div>
 
@@ -1526,48 +1556,161 @@ function EditProductModal({
   onClose: () => void;
   onSave: (updates: Partial<Product>) => void;
 }) {
+  const [name, setName] = useState(product.name);
+  const [description, setDescription] = useState(product.description || product.name);
+  const [category, setCategory] = useState<Category>(product.category);
+  const [image, setImage] = useState(product.image || "/marmitas/marmita-1.jpg");
   const [price, setPrice] = useState(String(product.price));
   const [cost, setCost] = useState(String(product.cost));
   const [stock, setStock] = useState(String(product.stock));
   const [available, setAvailable] = useState(product.available);
 
+  const sampleImages = [
+    { label: "Marmita 1", url: "/marmitas/marmita-1.jpg" },
+    { label: "Marmita 2", url: "/marmitas/marmita-2.jpg" },
+    { label: "Marmita 3", url: "/marmitas/marmita-3.jpg" },
+    { label: "Marmita 4", url: "/marmitas/marmita-4.jpg" },
+    { label: "Marmita 5", url: "/marmitas/marmita-5.jpg" },
+    { label: "Caldo 1", url: "/marmitas/caldo-1.jpg" },
+    { label: "Caldo 2", url: "/marmitas/caldo-2.jpg" },
+  ];
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <p className="kicker">Editar Produto</p>
-        <h3 style={{ fontSize: 22 }}>{product.name}</h3>
-        <p className="modal-description">Categoria: <b>{product.category}</b></p>
+        <h3 style={{ fontSize: 22 }}>Editar Marmita</h3>
+        <p className="modal-description">Ajuste o nome, descrição, foto, preços e estoque da marmita.</p>
 
-        <div className="modal-form-grid">
+        <div className="modal-form-grid" style={{ marginTop: 14 }}>
           <div className="modal-form-group">
-            <label>Preço de venda (R$)</label>
+            <label>Nome do Prato / Marmita *</label>
             <input
-              type="number"
-              step="0.50"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Filé de Frango Grelhado"
             />
           </div>
+
           <div className="modal-form-group">
-            <label>Custo de produção (R$)</label>
-            <input
-              type="number"
-              step="0.50"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
+            <label>Descrição do Prato (ingredientes e acompanhamentos)</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descrição exibida no cardápio..."
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                resize: "vertical",
+              }}
             />
           </div>
-          <div className="modal-form-group">
-            <label>Quantidade em estoque (unidades)</label>
-            <input
-              type="number"
-              step="1"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-            />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Categoria</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as Category)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "#fafafa",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                <option value="Frango">Frango</option>
+                <option value="Carne">Carne</option>
+                <option value="Caldos">Caldos</option>
+                <option value="Lanches">Lanches</option>
+                <option value="Sucos">Sucos</option>
+                <option value="Combos">Combos</option>
+              </select>
+            </div>
+
+            <div className="modal-form-group">
+              <label>Quantidade em estoque (un.)</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="modal-form-group" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Preço de venda (R$)</label>
+              <input
+                type="number"
+                step="0.50"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+            </div>
+            <div className="modal-form-group">
+              <label>Custo de produção (R$)</label>
+              <input
+                type="number"
+                step="0.50"
+                min="0"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="modal-form-group">
+            <label>Foto do Prato / Imagem</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <img
+                src={image || "/marmitas/marmita-1.jpg"}
+                alt="Preview"
+                style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0 }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/marmitas/marmita-1.jpg"; }}
+              />
+              <input
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="URL da foto ou escolha rápida abaixo..."
+                style={{ flex: 1 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {sampleImages.map((s) => (
+                <button
+                  key={s.url}
+                  type="button"
+                  onClick={() => setImage(s.url)}
+                  style={{
+                    border: image === s.url ? "2px solid var(--hunter)" : "1px solid var(--line)",
+                    borderRadius: 6,
+                    padding: 2,
+                    background: "#fff",
+                    cursor: "pointer",
+                    lineHeight: 0,
+                  }}
+                  title={s.label}
+                >
+                  <img src={s.url} alt={s.label} style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 4 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="modal-form-group" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
             <label style={{ margin: 0 }}>Item disponível para venda</label>
             <button
               className={`toggle ${available ? "on" : ""}`}
@@ -1581,12 +1724,16 @@ function EditProductModal({
 
         <button
           className="primary-button full"
-          style={{ marginTop: 22 }}
+          style={{ marginTop: 20 }}
           onClick={() => {
             const p = parseFloat(price);
             const c = parseFloat(cost);
             const s = parseInt(stock, 10);
             onSave({
+              name: name.trim() || product.name,
+              description: description.trim() || name.trim() || product.name,
+              category,
+              image: image.trim() || product.image,
               price: isNaN(p) ? product.price : p,
               cost: isNaN(c) ? product.cost : c,
               stock: isNaN(s) ? product.stock : s,
@@ -1596,6 +1743,226 @@ function EditProductModal({
         >
           Salvar alterações <Check size={16} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Modal for creating a new product
+function NewProductModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (product: Product) => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<Category>("Frango");
+  const [price, setPrice] = useState("26.50");
+  const [cost, setCost] = useState("12.00");
+  const [stock, setStock] = useState("50");
+  const [image, setImage] = useState("/marmitas/marmita-1.jpg");
+
+  const sampleImages = [
+    { label: "Marmita 1", url: "/marmitas/marmita-1.jpg" },
+    { label: "Marmita 2", url: "/marmitas/marmita-2.jpg" },
+    { label: "Marmita 3", url: "/marmitas/marmita-3.jpg" },
+    { label: "Marmita 4", url: "/marmitas/marmita-4.jpg" },
+    { label: "Marmita 5", url: "/marmitas/marmita-5.jpg" },
+    { label: "Caldo 1", url: "/marmitas/caldo-1.jpg" },
+    { label: "Caldo 2", url: "/marmitas/caldo-2.jpg" },
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      alert("Por favor, informe o nome da marmita.");
+      return;
+    }
+
+    const cleanName = name.trim();
+    const cleanDesc = description.trim() || cleanName;
+    const p = parseFloat(price);
+    const c = parseFloat(cost);
+    const s = parseInt(stock, 10);
+
+    const slug = cleanName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    const newProduct: Product = {
+      id: `marmita-${slug || Date.now()}`,
+      name: cleanName,
+      description: cleanDesc,
+      category,
+      price: isNaN(p) ? 26.5 : p,
+      cost: isNaN(c) ? 12 : c,
+      stock: isNaN(s) ? 50 : s,
+      available: true,
+      image: image.trim() || "/marmitas/marmita-1.jpg",
+      tags: ["Fit"],
+    };
+
+    onSubmit(newProduct);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="checkout-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
+        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <p className="kicker">Novo Produto</p>
+        <h3 style={{ fontSize: 22 }}>Cadastrar Nova Marmita</h3>
+        <p className="modal-description">
+          Adicione uma nova opção de marmita. Ela estará disponível no cardápio e para os clientes montarem seus combos.
+        </p>
+
+        <form onSubmit={handleSubmit} className="modal-form-grid" style={{ marginTop: 14 }}>
+          <div className="modal-form-group">
+            <label>Nome da Marmita *</label>
+            <input
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => {
+                const val = e.target.value;
+                setName(val);
+                if (!description || description === name) {
+                  setDescription(val);
+                }
+              }}
+              placeholder="Ex.: Feijoada Fit com lombo suíno e couve"
+            />
+          </div>
+
+          <div className="modal-form-group">
+            <label>Descrição do Prato (ingredientes e detalhes)</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="A descrição será exibida no cardápio..."
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                resize: "vertical",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Categoria</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as Category)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "#fafafa",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                <option value="Frango">Frango</option>
+                <option value="Carne">Carne</option>
+                <option value="Caldos">Caldos</option>
+                <option value="Lanches">Lanches</option>
+                <option value="Sucos">Sucos</option>
+                <option value="Combos">Combos</option>
+              </select>
+            </div>
+
+            <div className="modal-form-group">
+              <label>Estoque Inicial (un.)</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="modal-form-group">
+              <label>Preço de Venda (R$)</label>
+              <input
+                type="number"
+                step="0.50"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+            </div>
+            <div className="modal-form-group">
+              <label>Custo de Produção (R$)</label>
+              <input
+                type="number"
+                step="0.50"
+                min="0"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="modal-form-group">
+            <label>Foto do Prato / Imagem</label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <img
+                src={image || "/marmitas/marmita-1.jpg"}
+                alt="Preview"
+                style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)", flexShrink: 0 }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/marmitas/marmita-1.jpg"; }}
+              />
+              <input
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="URL da foto ou escolha rápida abaixo..."
+                style={{ flex: 1 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {sampleImages.map((s) => (
+                <button
+                  key={s.url}
+                  type="button"
+                  onClick={() => setImage(s.url)}
+                  style={{
+                    border: image === s.url ? "2px solid var(--hunter)" : "1px solid var(--line)",
+                    borderRadius: 6,
+                    padding: 2,
+                    background: "#fff",
+                    cursor: "pointer",
+                    lineHeight: 0,
+                  }}
+                  title={s.label}
+                >
+                  <img src={s.url} alt={s.label} style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 4 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="primary-button full"
+            style={{ marginTop: 18, background: "var(--hunter)", color: "#fff" }}
+          >
+            Cadastrar Marmita <Check size={16} />
+          </button>
+        </form>
       </div>
     </div>
   );
