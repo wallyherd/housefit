@@ -88,7 +88,7 @@ export type Partner = {
 const mealImage = "/marmitas/marmita-1.jpg";
 const bowlImage = "/marmitas/marmita-3.jpg";
 const proteinImage = "/marmitas/marmita-4.jpg";
-const soupImage = "/marmitas/marmita-2.jpg";
+const soupImage = "/marmitas/caldo-1.jpg";
 const snackImage = "/marmitas/marmita-5.jpg";
 const juiceImage = "/marmitas/marmita-1.jpg";
 
@@ -148,11 +148,11 @@ export const initialProducts: Product[] = [
   product("carne-tiras-mandioca", "Tiras de carne com mandioca cozida", "Carne", "130g de tiras de carne e mandioca com caldo.", 26.5, 41, 12.4, "/marmitas/marmita-1.jpg"),
   product("carne-batata-rustica", "Carne desfiada, arroz branco e batata rústica", "Carne", "Carne desfiada, arroz branco e batata rústica.", 26.5, 70, 12.2, "/marmitas/marmita-2.jpg"),
   product("carne-creme-milho", "Patinho moído, arroz e creme de milho", "Carne", "Patinho moído, arroz branco e creme de milho.", 26.5, 72, 12.3, "/marmitas/marmita-3.jpg"),
-  product("caldo-carioca", "Caldo de feijão carioca com bacon e calabresa", "Caldos", "350ml de caldo encorpado para aquecer a rotina.", 18, 28, 7.1, "/marmitas/marmita-4.jpg"),
-  product("caldo-abobora-frango", "Caldo de abóbora com frango desfiado", "Caldos", "350ml de caldo de abóbora com frango.", 18, 26, 6.4, "/marmitas/marmita-5.jpg"),
-  product("caldo-abobora-carne", "Caldo de abóbora com patinho moído", "Caldos", "350ml de caldo de abóbora com patinho.", 18, 39, 6.9, "/marmitas/marmita-1.jpg"),
-  product("caldo-preto", "Caldo de feijão preto com bacon e calabresa", "Caldos", "350ml de caldo de feijão preto.", 18, 33, 7.3, "/marmitas/marmita-2.jpg"),
-  product("caldo-mandioca", "Caldo de mandioca com carne desfiada", "Caldos", "350ml de mandioca com carne desfiada.", 18, 5, 7.2, "/marmitas/marmita-3.jpg", "Últimas unidades"),
+  product("caldo-carioca", "Caldo de feijão carioca com bacon e calabresa", "Caldos", "350ml de caldo encorpado para aquecer a rotina.", 18, 28, 7.1, "/marmitas/caldo-1.jpg"),
+  product("caldo-abobora-frango", "Caldo de abóbora com frango desfiado", "Caldos", "350ml de caldo de abóbora com frango.", 18, 26, 6.4, "/marmitas/caldo-2.jpg"),
+  product("caldo-abobora-carne", "Caldo de abóbora com patinho moído", "Caldos", "350ml de caldo de abóbora com patinho.", 18, 39, 6.9, "/marmitas/caldo-1.jpg"),
+  product("caldo-preto", "Caldo de feijão preto com bacon e calabresa", "Caldos", "350ml de caldo de feijão preto.", 18, 33, 7.3, "/marmitas/caldo-2.jpg"),
+  product("caldo-mandioca", "Caldo de mandioca com carne desfiada", "Caldos", "350ml de mandioca com carne desfiada.", 18, 5, 7.2, "/marmitas/caldo-1.jpg", "Últimas unidades"),
   product("lanche-coxinha", "Coxinha de frango com requeijão", "Lanches", "100g, com massa de batata e recheio cremoso.", 15, 32, 6.5, "/marmitas/marmita-4.jpg"),
   product("lanche-torta-palmito", "Torta de palmito integral", "Lanches", "120g, massa integral e recheio de palmito.", 15, 12, 6.1, "/marmitas/marmita-5.jpg"),
   product("lanche-torta-carne", "Torta de carne louca integral", "Lanches", "120g, massa integral com carne bovina temperada.", 15, 11, 6.6, "/marmitas/marmita-1.jpg"),
@@ -244,7 +244,7 @@ export const productReport = [
   { name: "Caldo de abóbora com frango desfiado", units: 64, revenue: 1152 },
 ];
 
-export const PRODUCTS_STORAGE_KEY = "housefit-products-v6";
+export const PRODUCTS_STORAGE_KEY = "housefit-products-v7";
 
 export function sanitizeProducts(savedList: Product[]): Product[] {
   const comboUpdates: Record<string, Partial<Product>> = {
@@ -276,7 +276,14 @@ export function sanitizeProducts(savedList: Product[]): Product[] {
 
     // Se a imagem não for uma das fotos reais locais, atualizar com a imagem do catálogo inicial
     let image = p.image;
-    if (p.category !== "Combos" && (!image || !image.startsWith("/marmitas/"))) {
+    if (p.category === "Caldos" && (!image || !image.startsWith("/marmitas/caldo-"))) {
+      const matchInit = initialProducts.find((ip) => ip.id === p.id || ip.name.toLowerCase() === p.name.toLowerCase());
+      if (matchInit) {
+        image = matchInit.image;
+      } else {
+        image = "/marmitas/caldo-1.jpg";
+      }
+    } else if (p.category !== "Combos" && (!image || !image.startsWith("/marmitas/"))) {
       const matchInit = initialProducts.find((ip) => ip.id === p.id || ip.name.toLowerCase() === p.name.toLowerCase());
       if (matchInit) {
         image = matchInit.image;
